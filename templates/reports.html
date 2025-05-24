@@ -1,0 +1,462 @@
+{% extends 'base.html' %}
+
+{% block title %}Financial Reports - Receipt Processing App{% endblock %}
+
+{% block content %}
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-chart-bar me-2"></i>
+            Financial Reports
+        </h2>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs mb-4" id="reportsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices-content" 
+                        type="button" role="tab" aria-controls="invoices-content" aria-selected="true">
+                    <i class="fas fa-file-invoice-dollar me-1"></i> Invoices
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="assets-tab" data-bs-toggle="tab" data-bs-target="#assets-content" 
+                        type="button" role="tab" aria-controls="assets-content" aria-selected="false">
+                    <i class="fas fa-laptop me-1"></i> Assets
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="expenses-tab" data-bs-toggle="tab" data-bs-target="#expenses-content" 
+                        type="button" role="tab" aria-controls="expenses-content" aria-selected="false">
+                    <i class="fas fa-money-bill-alt me-1"></i> Expenses
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vendors-tab" data-bs-toggle="tab" data-bs-target="#vendors-content" 
+                        type="button" role="tab" aria-controls="vendors-content" aria-selected="false">
+                    <i class="fas fa-store me-1"></i> Vendors
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="reportsTabsContent">
+            <!-- Invoices Report -->
+            <div class="tab-pane fade show active" id="invoices-content" role="tabpanel" aria-labelledby="invoices-tab">
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Invoices</h6>
+                                <h2 class="display-5">{{ invoices|length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Paid Invoices</h6>
+                                <h2 class="display-5">{{ paid_invoices_count }}</h2>
+                                <small class="text-muted">${{ "%.2f"|format(paid_invoices_total) }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Unpaid Invoices</h6>
+                                <h2 class="display-5">{{ unpaid_invoices_count }}</h2>
+                                <small class="text-muted">${{ "%.2f"|format(unpaid_invoices_total) }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Invoices Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="invoices-chart" class="chart-container">
+                            <canvas id="invoicesBarChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Assets Report -->
+            <div class="tab-pane fade" id="assets-content" role="tabpanel" aria-labelledby="assets-tab">
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Assets</h6>
+                                <h2 class="display-5">{{ assets|length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Purchase Value</h6>
+                                <h2 class="display-5">${{ "%.2f"|format(assets_purchase_value) }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Estimated Value</h6>
+                                <h2 class="display-5">${{ "%.2f"|format(assets_estimated_value) }}</h2>
+                                <small class="text-muted">
+                                    {% if assets_value_change >= 0 %}
+                                        <span class="text-success">+{{ "%.1f"|format(assets_value_change) }}%</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ "%.1f"|format(assets_value_change) }}%</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Assets by Category</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="assets-chart" class="chart-container">
+                            <canvas id="assetsPieChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Expenses Report -->
+            <div class="tab-pane fade" id="expenses-content" role="tabpanel" aria-labelledby="expenses-tab">
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Expenses</h6>
+                                <h2 class="display-5">${{ "%.2f"|format(total_expenses) }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Average Expense</h6>
+                                <h2 class="display-5">${{ "%.2f"|format(average_expense) }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Expense Categories</h6>
+                                <h2 class="display-5">{{ expense_categories|length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Expenses by Category</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="expenses-chart" class="chart-container">
+                            <canvas id="expensesDoughnutChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Detailed Expenses Breakdown</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-dark">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Amount</th>
+                                        <th>% of Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for category in expense_categories %}
+                                    <tr>
+                                        <td>{{ category }}</td>
+                                        <td>${{ "%.2f"|format(expense_data[category]) }}</td>
+                                        <td>{{ "%.1f"|format(expense_data[category] / total_expenses * 100) }}%</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vendors Report -->
+            <div class="tab-pane fade" id="vendors-content" role="tabpanel" aria-labelledby="vendors-tab">
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Vendors</h6>
+                                <h2 class="display-5">{{ vendors|length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Average Spent per Vendor</h6>
+                                <h2 class="display-5">${{ "%.2f"|format(avg_spent_per_vendor) }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 bg-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Top Vendor</h6>
+                                <h2 class="display-5">{{ top_vendor.name }}</h2>
+                                <small class="text-muted">${{ "%.2f"|format(top_vendor.total) }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Top Vendors by Spend</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="vendors-chart" class="chart-container">
+                            <canvas id="vendorsBarChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-dark mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Vendor Expense Categories</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-dark">
+                                <thead>
+                                    <tr>
+                                        <th>Vendor</th>
+                                        <th>Categories</th>
+                                        <th>Total Spent</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for vendor in vendor_categories %}
+                                    <tr>
+                                        <td>{{ vendor.name }}</td>
+                                        <td>
+                                            {% for category in vendor.categories %}
+                                                <span class="badge bg-info me-1">{{ category }}</span>
+                                            {% endfor %}
+                                        </td>
+                                        <td>${{ "%.2f"|format(vendor.total) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Charts Configuration
+    Chart.defaults.color = '#fff';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+    
+    // Invoices Bar Chart
+    const invoicesCtx = document.getElementById('invoicesBarChart').getContext('2d');
+    new Chart(invoicesCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ invoice_months|tojson }},
+            datasets: [{
+                label: 'Paid Invoices',
+                data: {{ invoice_data.paid|tojson }},
+                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Unpaid Invoices',
+                data: {{ invoice_data.unpaid|tojson }},
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Monthly Invoice Distribution'
+                },
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Amount ($)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Month'
+                    }
+                }
+            }
+        }
+    });
+    
+    // Assets Pie Chart
+    const assetsCtx = document.getElementById('assetsPieChart').getContext('2d');
+    new Chart(assetsCtx, {
+        type: 'pie',
+        data: {
+            labels: {{ asset_categories|tojson }},
+            datasets: [{
+                data: {{ asset_values|tojson }},
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(199, 199, 199, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(255, 99, 132, 1)', 
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(199, 199, 199, a)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Asset Value by Category'
+                },
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+    
+    // Expenses Doughnut Chart
+    const expensesCtx = document.getElementById('expensesDoughnutChart').getContext('2d');
+    new Chart(expensesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ expense_categories|tojson }},
+            datasets: [{
+                data: {{ expense_values|tojson }},
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(199, 199, 199, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(199, 199, 199, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Expense Distribution by Category'
+                },
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+    
+    // Vendors Bar Chart
+    const vendorsCtx = document.getElementById('vendorsBarChart').getContext('2d');
+    new Chart(vendorsCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ top_vendors_names|tojson }},
+            datasets: [{
+                label: 'Amount Spent',
+                data: {{ top_vendors_values|tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Top Vendors by Spend'
+                },
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Amount Spent ($)'
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

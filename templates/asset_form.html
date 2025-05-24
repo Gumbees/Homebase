@@ -1,0 +1,659 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Asset - Receipt Processing App{% endblock %}
+
+{% block content %}
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-laptop me-2"></i>
+            {% if edit_mode %}Edit{% else %}Add{% endif %} Asset
+        </h2>
+        <a href="{{ url_for('assets') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Assets
+        </a>
+    </div>
+    <div class="card-body">
+        <form id="assetForm" method="POST" class="needs-validation" novalidate>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group mb-3">
+                        <label for="assetImage" class="form-label">Asset Image</label>
+                        <input type="file" class="form-control" id="assetImage" name="asset_image" accept="image/*">
+                        <div class="form-text">Upload an image of the asset to analyze and auto-fill details</div>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label class="form-label">Analyze Asset Image</label>
+                        <div class="d-flex gap-2">
+                            <button type="button" id="analyzeImageOpenAIBtn" class="btn btn-info flex-grow-1">
+                                <i class="fas fa-camera me-1"></i> Analyze with OpenAI
+                            </button>
+                            <button type="button" id="analyzeImageClaudeBtn" class="btn btn-primary flex-grow-1">
+                                <i class="fas fa-camera me-1"></i> Analyze with Claude
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="assetName" class="form-label">Asset Name</label>
+                        <input type="text" class="form-control" id="assetName" name="name" required>
+                        <div class="invalid-feedback">Please provide an asset name.</div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="manufacturer" class="form-label">Manufacturer</label>
+                        <input type="text" class="form-control" id="manufacturer" name="manufacturer">
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="model" class="form-label">Model</label>
+                        <input type="text" class="form-control" id="model" name="model">
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="upc" class="form-label">UPC Code</label>
+                        <input type="text" class="form-control" id="upc" name="upc" 
+                               placeholder="Universal Product Code">
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="serial_number" class="form-label">Serial Number</label>
+                        <input type="text" class="form-control" id="serial_number" name="serial_number" 
+                               placeholder="Unique device serial number">
+                        <div class="form-text">Assets with serial numbers must have quantity=1</div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select class="form-select" id="category" name="category">
+                            <option value="">Select Category</option>
+                            <option value="Computer">Computer</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Office Equipment">Office Equipment</option>
+                            <option value="Furniture">Furniture</option>
+                            <option value="Vehicle">Vehicle</option>
+                            <option value="Software">Software</option>
+                            <option value="Tool">Tool</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Auto-Fill Using UPC/Model</label>
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" id="lookupAssetOpenAIBtn" class="btn btn-info flex-grow-1">
+                                <i class="fas fa-magic me-1"></i> Lookup with OpenAI
+                            </button>
+                            <button type="button" id="lookupAssetClaudeBtn" class="btn btn-primary flex-grow-1">
+                                <i class="fas fa-magic me-1"></i> Lookup with Claude
+                            </button>
+                        </div>
+                        <div id="lookupResult" class="alert d-none mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <div class="form-group mb-3">
+                        <label for="acquisitionDate" class="form-label">Acquisition Date</label>
+                        <input type="date" class="form-control" id="acquisitionDate" name="acquisition_date" 
+                               value="{{ asset.data.acquisition_date }}" required>
+                        <div class="invalid-feedback">Please provide an acquisition date.</div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="acquisitionCost" class="form-label">Acquisition Cost</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="acquisitionCost" 
+                                   name="acquisition_cost" placeholder="0.00">
+                        </div>
+                        <small class="form-text text-muted">Leave blank if unknown</small>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="estimatedValue" class="form-label">Estimated Current Value</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="estimatedValue" 
+                                   name="estimated_value" placeholder="0.00">
+                        </div>
+                        <small class="form-text text-muted">Can be auto-filled using the lookup feature</small>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="usefulLife" class="form-label">Useful Life (years)</label>
+                        <input type="number" step="1" min="0" class="form-control" id="usefulLife" 
+                               name="useful_life_years" placeholder="0">
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="quantity" class="form-label">Quantity</label>
+                        <input type="number" step="1" min="1" class="form-control" id="quantity" 
+                               name="quantity" value="1">
+                        <div id="quantityWarning" class="form-text text-warning d-none">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            Assets with serial numbers must have quantity of 1
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card bg-secondary">
+                        <div class="card-header">
+                            <h5 class="mb-0">Additional Specifications</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="specificationsContainer">
+                                <div class="specification-row row mb-2">
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-key" name="spec_keys[]" placeholder="e.g., Processor">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-value" name="spec_values[]" placeholder="e.g., Intel Core i7">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger remove-spec-btn">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" id="addSpecBtn" class="btn btn-success mt-2">
+                                <i class="fas fa-plus me-1"></i> Add Specification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group text-center mt-4 mb-3">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-1"></i> {% if edit_mode %}Update{% else %}Save{% endif %} Asset
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    const form = document.getElementById('assetForm');
+    
+    form.addEventListener('submit', function(event) {
+        if (!this.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        // Collect specifications into a JSON object
+        const specKeys = document.querySelectorAll('.spec-key');
+        const specValues = document.querySelectorAll('.spec-value');
+        const specifications = {};
+        
+        for (let i = 0; i < specKeys.length; i++) {
+            if (specKeys[i].value.trim() !== '' && specValues[i].value.trim() !== '') {
+                specifications[specKeys[i].value.trim()] = specValues[i].value.trim();
+            }
+        }
+        
+        // Add specifications as a hidden field
+        const specsInput = document.createElement('input');
+        specsInput.type = 'hidden';
+        specsInput.name = 'specifications';
+        specsInput.value = JSON.stringify(specifications);
+        this.appendChild(specsInput);
+        
+        this.classList.add('was-validated');
+    });
+    
+    // Handle adding specification rows
+    const addSpecBtn = document.getElementById('addSpecBtn');
+    const specificationsContainer = document.getElementById('specificationsContainer');
+    
+    addSpecBtn.addEventListener('click', function() {
+        const newRow = document.createElement('div');
+        newRow.className = 'specification-row row mb-2';
+        newRow.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control spec-key" name="spec_keys[]" placeholder="e.g., Processor">
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control spec-value" name="spec_values[]" placeholder="e.g., Intel Core i7">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-danger remove-spec-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        specificationsContainer.appendChild(newRow);
+        
+        // Add event listener to the new remove button
+        const removeBtn = newRow.querySelector('.remove-spec-btn');
+        removeBtn.addEventListener('click', function() {
+            specificationsContainer.removeChild(newRow);
+        });
+    });
+    
+    // Add event listeners to existing remove buttons
+    document.querySelectorAll('.remove-spec-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const row = this.closest('.specification-row');
+            specificationsContainer.removeChild(row);
+        });
+    });
+    
+    // Serial number and quantity validation
+    const serialNumberInput = document.getElementById('serial_number');
+    const quantityInput = document.getElementById('quantity');
+    const quantityWarning = document.getElementById('quantityWarning');
+    
+    // Function to check if serial number requires quantity of 1
+    function validateSerialNumberAndQuantity() {
+        const serialNumber = serialNumberInput.value.trim();
+        const quantity = parseInt(quantityInput.value, 10);
+        
+        if (serialNumber && quantity > 1) {
+            // Show warning
+            quantityWarning.classList.remove('d-none');
+            quantityInput.classList.add('is-invalid');
+            quantityInput.value = 1; // Force quantity to be 1
+            return false;
+        } else {
+            // Hide warning
+            quantityWarning.classList.add('d-none');
+            quantityInput.classList.remove('is-invalid');
+            return true;
+        }
+    }
+    
+    // Add event listeners
+    if (serialNumberInput && quantityInput) {
+        serialNumberInput.addEventListener('input', validateSerialNumberAndQuantity);
+        quantityInput.addEventListener('input', validateSerialNumberAndQuantity);
+        
+        // Add validation before form submission
+        form.addEventListener('submit', function(event) {
+            if (!validateSerialNumberAndQuantity()) {
+                event.preventDefault();
+                event.stopPropagation();
+                alert('Assets with serial numbers must have a quantity of 1.');
+            }
+        });
+    }
+    
+    // Asset Image Analysis Functionality
+    const analyzeImageOpenAIBtn = document.getElementById('analyzeImageOpenAIBtn');
+    const analyzeImageClaudeBtn = document.getElementById('analyzeImageClaudeBtn');
+    const assetImageInput = document.getElementById('assetImage');
+    const lookupResult = document.getElementById('lookupResult');
+    
+    // Function to handle image analysis with either API
+    const analyzeImage = (useClaudeAPI) => {
+        // Check if an image was uploaded
+        if (!assetImageInput.files || !assetImageInput.files[0]) {
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "Please upload an image of the asset to analyze.";
+            return;
+        }
+        
+        // Show loading state
+        const activeButton = useClaudeAPI ? analyzeImageClaudeBtn : analyzeImageOpenAIBtn;
+        const inactiveButton = useClaudeAPI ? analyzeImageOpenAIBtn : analyzeImageClaudeBtn;
+        
+        activeButton.disabled = true;
+        inactiveButton.disabled = true;
+        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
+        lookupResult.classList.add('d-none');
+        
+        // Create form data for file upload
+        const formData = new FormData();
+        formData.append('asset_image', assetImageInput.files[0]);
+        
+        // Determine which API to use
+        const apiEndpoint = useClaudeAPI ? '/api/analyze-asset-image-claude' : '/api/analyze-asset-image';
+            
+        // Call appropriate API
+        fetch(apiEndpoint, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Reset button states
+            activeButton.disabled = false;
+            inactiveButton.disabled = false;
+            
+            // Restore button text
+            analyzeImageOpenAIBtn.innerHTML = '<i class="fas fa-camera me-1"></i> Analyze with OpenAI';
+            analyzeImageClaudeBtn.innerHTML = '<i class="fas fa-camera me-1"></i> Analyze with Claude';
+                
+                // Process the response
+                if (data.success) {
+                    // Extract asset data from the response
+                    const assetData = data.data;
+                    
+                    // Fill the form with the retrieved data
+                    if (assetData.name) document.getElementById('assetName').value = assetData.name;
+                    if (assetData.manufacturer) document.getElementById('manufacturer').value = assetData.manufacturer;
+                    if (assetData.model) document.getElementById('model').value = assetData.model;
+                    
+                    if (assetData.category) {
+                        const categorySelect = document.getElementById('category');
+                        const categories = Array.from(categorySelect.options).map(opt => opt.value.toLowerCase());
+                        
+                        // Try to find a matching category
+                        const foundCategory = categories.find(cat => 
+                            assetData.category.toLowerCase().includes(cat.toLowerCase())
+                        );
+                        
+                        if (foundCategory) {
+                            // Find and select the matching option
+                            for (let i = 0; i < categorySelect.options.length; i++) {
+                                if (categorySelect.options[i].value.toLowerCase() === foundCategory) {
+                                    categorySelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        } else if (assetData.category) {
+                            // Select "Other" if no matching category
+                            for (let i = 0; i < categorySelect.options.length; i++) {
+                                if (categorySelect.options[i].value === 'Other') {
+                                    categorySelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Fill UPC if available
+                    if (assetData.upc || assetData.serial_number) {
+                        document.getElementById('upc').value = assetData.upc || assetData.serial_number;
+                    }
+                    
+                    if (assetData.estimated_value) {
+                        document.getElementById('estimatedValue').value = assetData.estimated_value;
+                    }
+                    
+                    if (assetData.description) {
+                        document.getElementById('description').value = assetData.description;
+                    }
+                    
+                    // Fill specifications
+                    if (assetData.specifications) {
+                        // Clear existing specifications except the first empty one
+                        const specificationsContainer = document.getElementById('specificationsContainer');
+                        while (specificationsContainer.children.length > 1) {
+                            specificationsContainer.removeChild(specificationsContainer.lastChild);
+                        }
+                        
+                        // Fill the first row if it's empty
+                        const firstRow = specificationsContainer.querySelector('.specification-row');
+                        const firstKeyInput = firstRow.querySelector('.spec-key');
+                        const firstValueInput = firstRow.querySelector('.spec-value');
+                        
+                        // Counter to track specifications
+                        let specCount = 0;
+                        
+                        // Iterate through specifications
+                        for (const [key, value] of Object.entries(assetData.specifications)) {
+                            if (typeof value === 'string' && value.trim() !== '') {
+                                if (specCount === 0) {
+                                    // Use the first row
+                                    firstKeyInput.value = key;
+                                    firstValueInput.value = value;
+                                } else {
+                                    // Create new rows for additional specs
+                                    const addSpecBtn = document.getElementById('addSpecBtn');
+                                    addSpecBtn.click(); // Use the existing add spec button
+                                    
+                                    // Get the new row (last child)
+                                    const newRow = specificationsContainer.lastChild;
+                                    const keyInput = newRow.querySelector('.spec-key');
+                                    const valueInput = newRow.querySelector('.spec-value');
+                                    
+                                    keyInput.value = key;
+                                    valueInput.value = value;
+                                }
+                                specCount++;
+                            }
+                        }
+                    }
+                    
+                    // Show success message
+                    lookupResult.classList.remove('d-none', 'alert-danger');
+                    lookupResult.classList.add('alert-success');
+                    const aiModel = useClaudeAPI ? 'Claude AI' : 'OpenAI';
+                    lookupResult.textContent = `Successfully analyzed asset image using ${aiModel} and populated details.`;
+                } else {
+                    // Show error message
+                    lookupResult.classList.remove('d-none', 'alert-success');
+                    lookupResult.classList.add('alert-danger');
+                    lookupResult.textContent = data.error || "Failed to analyze asset image.";
+                }
+            })
+            .catch(error => {
+                // Reset button states
+                analyzeImageOpenAIBtn.disabled = false;
+                analyzeImageClaudeBtn.disabled = false;
+                
+                // Restore button text
+                analyzeImageOpenAIBtn.innerHTML = '<i class="fas fa-camera me-1"></i> Analyze with OpenAI';
+                analyzeImageClaudeBtn.innerHTML = '<i class="fas fa-camera me-1"></i> Analyze with Claude';
+                
+                // Show error message
+                lookupResult.classList.remove('d-none', 'alert-success');
+                lookupResult.classList.add('alert-danger');
+                lookupResult.textContent = "Error: " + error.message;
+            });
+        });
+    }
+    
+    // Add event listeners for both analyze image buttons
+    if (analyzeImageOpenAIBtn) {
+        analyzeImageOpenAIBtn.addEventListener('click', function() {
+            analyzeImage(false); // Use OpenAI
+        });
+    }
+    
+    if (analyzeImageClaudeBtn) {
+        analyzeImageClaudeBtn.addEventListener('click', function() {
+            analyzeImage(true); // Use Claude
+        });
+    }
+    
+    // Asset Data Lookup Functionality
+    const lookupAssetOpenAIBtn = document.getElementById('lookupAssetOpenAIBtn');
+    const lookupAssetClaudeBtn = document.getElementById('lookupAssetClaudeBtn');
+    
+    // Function to handle asset lookup with either API
+    const lookupAssetDetails = (useClaudeAPI) => {
+        // Get the data needed for lookup
+        const upc = document.getElementById('upc').value.trim();
+        const oem = document.getElementById('manufacturer').value.trim();
+        const model = document.getElementById('model').value.trim();
+        
+        // Check if we have enough information
+        if (!upc && !oem && !model) {
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "Please provide at least UPC, Manufacturer, or Model information for lookup.";
+            return;
+        }
+        
+        // Show loading state
+        const activeButton = useClaudeAPI ? lookupAssetClaudeBtn : lookupAssetOpenAIBtn;
+        const inactiveButton = useClaudeAPI ? lookupAssetOpenAIBtn : lookupAssetClaudeBtn;
+        
+        activeButton.disabled = true;
+        inactiveButton.disabled = true;
+        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Looking up...';
+        lookupResult.classList.add('d-none');
+        
+        // Call API
+        fetch('/api/lookup-asset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                upc: upc,
+                oem: oem,
+                model: model,
+                use_claude: useClaudeAPI
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                // Reset button states
+                lookupAssetOpenAIBtn.disabled = false;
+                lookupAssetClaudeBtn.disabled = false;
+                
+                // Restore button text
+                lookupAssetOpenAIBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+                lookupAssetClaudeBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with Claude';
+                
+                // Process the response
+                if (data.success) {
+                    // Fill the form with the retrieved data
+                    if (data.product_name) document.getElementById('assetName').value = data.product_name;
+                    if (data.manufacturer) document.getElementById('manufacturer').value = data.manufacturer;
+                    if (data.model) document.getElementById('model').value = data.model;
+                    if (data.category) {
+                        const categorySelect = document.getElementById('category');
+                        const categories = Array.from(categorySelect.options).map(opt => opt.value.toLowerCase());
+                        const foundCategory = categories.find(cat => data.category.toLowerCase().includes(cat.toLowerCase()));
+                        
+                        if (foundCategory) {
+                            for (let i = 0; i < categorySelect.options.length; i++) {
+                                if (categorySelect.options[i].value.toLowerCase() === foundCategory) {
+                                    categorySelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        } else if (data.category) {
+                            // Select "Other" if no matching category
+                            for (let i = 0; i < categorySelect.options.length; i++) {
+                                if (categorySelect.options[i].value === 'Other') {
+                                    categorySelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (data.estimated_value) document.getElementById('estimatedValue').value = data.estimated_value;
+                    if (data.useful_life_years) document.getElementById('usefulLife').value = data.useful_life_years;
+                    if (data.description) document.getElementById('description').value = data.description;
+                    
+                    // Fill specifications
+                    if (data.specifications) {
+                        // Clear existing specifications except the first empty one
+                        while (specificationsContainer.children.length > 1) {
+                            specificationsContainer.removeChild(specificationsContainer.lastChild);
+                        }
+                        
+                        // Fill the first row if it's empty
+                        const firstRow = specificationsContainer.querySelector('.specification-row');
+                        const firstKeyInput = firstRow.querySelector('.spec-key');
+                        const firstValueInput = firstRow.querySelector('.spec-value');
+                        
+                        // Counter to track specifications
+                        let specCount = 0;
+                        
+                        // Iterate through specifications
+                        for (const [key, value] of Object.entries(data.specifications)) {
+                            if (specCount === 0) {
+                                // Use the first row
+                                firstKeyInput.value = key;
+                                firstValueInput.value = value;
+                            } else {
+                                // Create new rows for additional specs
+                                const newRow = document.createElement('div');
+                                newRow.className = 'specification-row row mb-2';
+                                newRow.innerHTML = `
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-key" name="spec_keys[]" value="${key}" placeholder="e.g., Processor">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-value" name="spec_values[]" value="${value}" placeholder="e.g., Intel Core i7">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger remove-spec-btn">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                `;
+                                specificationsContainer.appendChild(newRow);
+                                
+                                // Add event listener to the new remove button
+                                const removeBtn = newRow.querySelector('.remove-spec-btn');
+                                removeBtn.addEventListener('click', function() {
+                                    specificationsContainer.removeChild(newRow);
+                                });
+                            }
+                            specCount++;
+                        }
+                    }
+                    
+                    // Show success message
+                    lookupResult.classList.remove('d-none', 'alert-danger');
+                    lookupResult.classList.add('alert-success');
+                    
+                    const confidenceLevel = Math.round((data.confidence?.overall || 0.8) * 100);
+                    const aiModel = useClaudeAPI ? 'Claude AI' : 'OpenAI';
+                    lookupResult.innerHTML = `
+                        <strong>Success!</strong> Asset details retrieved using ${aiModel} with ${confidenceLevel}% confidence.<br>
+                        Please review and adjust any information as needed.
+                    `;
+                } else {
+                    // Show error message
+                    lookupResult.classList.remove('d-none', 'alert-success');
+                    lookupResult.classList.add('alert-danger');
+                    lookupResult.textContent = data.error || "Failed to retrieve asset information.";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                
+                // Reset button states
+                lookupAssetOpenAIBtn.disabled = false;
+                lookupAssetClaudeBtn.disabled = false;
+                
+                // Restore button text
+                lookupAssetOpenAIBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+                lookupAssetClaudeBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with Claude';
+                
+                lookupResult.classList.remove('d-none', 'alert-success');
+                lookupResult.classList.add('alert-danger');
+                lookupResult.textContent = "An error occurred. Please try again.";
+            });
+    };
+    
+    // Add event listeners for both lookup buttons
+    if (lookupAssetOpenAIBtn) {
+        lookupAssetOpenAIBtn.addEventListener('click', function() {
+            lookupAssetDetails(false); // Use OpenAI
+        });
+    }
+    
+    if (lookupAssetClaudeBtn) {
+        lookupAssetClaudeBtn.addEventListener('click', function() {
+            lookupAssetDetails(true); // Use Claude
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">
+        <i class="fas fa-bell text-warning me-2"></i>
+        Asset Serial Number Reminders
+    </h1>
+    
+    <div class="card bg-dark mb-4">
+        <div class="card-body">
+            <h5 class="card-title">About Serial Number Reminders</h5>
+            <p class="card-text">
+                This page shows assets that our AI system has identified as likely requiring a serial number.
+                These are typically high-value electronic items, equipment, or other serialized products.
+                Adding serial numbers helps with asset tracking, warranty claims, and inventory management.
+            </p>
+        </div>
+    </div>
+
+    {% if missing_serial_assets|length == 0 %}
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i>
+            Great job! All assets that should have serial numbers already have them.
+        </div>
+    {% else %}
+        <div class="row">
+            {% for asset in missing_serial_assets %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 bg-dark">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <span class="badge rounded-pill bg-info me-2">ID: {{ asset.id }}</span>
+                                {{ asset.name }}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row">
+                                {% if asset.manufacturer %}
+                                <dt class="col-sm-5">Manufacturer:</dt>
+                                <dd class="col-sm-7">{{ asset.manufacturer }}</dd>
+                                {% endif %}
+                                
+                                {% if asset.model %}
+                                <dt class="col-sm-5">Model:</dt>
+                                <dd class="col-sm-7">{{ asset.model }}</dd>
+                                {% endif %}
+                                
+                                {% if asset.category %}
+                                <dt class="col-sm-5">Category:</dt>
+                                <dd class="col-sm-7">{{ asset.category }}</dd>
+                                {% endif %}
+                                
+                                {% if asset.upc %}
+                                <dt class="col-sm-5">UPC:</dt>
+                                <dd class="col-sm-7">{{ asset.upc }}</dd>
+                                {% endif %}
+                                
+                                <dt class="col-sm-5">Value:</dt>
+                                <dd class="col-sm-7">${{ asset.value|round(2) }}</dd>
+                                
+                                <dt class="col-sm-5">AI Confidence:</dt>
+                                <dd class="col-sm-7">
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-{{ 'success' if asset.confidence > 0.8 else 'warning' if asset.confidence > 0.6 else 'danger' }}" 
+                                             role="progressbar" 
+                                             style="width: {{ (asset.confidence * 100)|round }}%;" 
+                                             aria-valuenow="{{ (asset.confidence * 100)|round }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ (asset.confidence * 100)|round }}%
+                                        </div>
+                                    </div>
+                                </dd>
+                            </dl>
+                            
+                            <div class="mt-3">
+                                <h6>AI Reasoning:</h6>
+                                <p class="small text-muted">{{ asset.reasoning }}</p>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" placeholder="Enter serial number" id="serial-{{ asset.id }}">
+                                <button class="btn btn-primary" type="button" onclick="addSerialNumber({{ asset.id }})">
+                                    <i class="fas fa-save me-1"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function addSerialNumber(assetId) {
+        const serialInput = document.getElementById(`serial-${assetId}`);
+        const serialNumber = serialInput.value.trim();
+        
+        if (!serialNumber) {
+            alert('Please enter a valid serial number');
+            return;
+        }
+        
+        // Send API request to add the serial number
+        fetch(`/api/assets/${assetId}/add-serial-number`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                serial_number: serialNumber
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Success message
+                alert('Serial number added successfully!');
+                // Remove the card from the page (hide it)
+                const card = document.getElementById(`serial-${assetId}`).closest('.col-md-6');
+                card.style.display = 'none';
+                card.classList.add('fade-out');
+                
+                // Check if all cards are now hidden
+                setTimeout(() => {
+                    const visibleCards = document.querySelectorAll('.col-md-6:not(.fade-out)');
+                    if (visibleCards.length === 0) {
+                        // Refresh the page to show the "all done" message
+                        window.location.reload();
+                    }
+                }, 500);
+            } else {
+                // Error message
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the serial number');
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,796 @@
+{% extends 'base.html' %}
+
+{% block title %}Add {{ object_type|capitalize }} - Inventory Management{% endblock %}
+
+{% block content %}
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            {% if object_type == 'asset' %}
+                <i class="fas fa-laptop me-2"></i>
+            {% elif object_type == 'consumable' %}
+                <i class="fas fa-box-open me-2"></i>
+            {% elif object_type == 'component' %}
+                <i class="fas fa-microchip me-2"></i>
+            {% elif object_type == 'person' %}
+                <i class="fas fa-user me-2"></i>
+            {% elif object_type == 'pet' %}
+                <i class="fas fa-paw me-2"></i>
+            {% elif object_type == 'service' %}
+                <i class="fas fa-concierge-bell me-2"></i>
+            {% elif object_type == 'software' %}
+                <i class="fas fa-code me-2"></i>
+            {% else %}
+                <i class="fas fa-cube me-2"></i>
+            {% endif %}
+            {% if edit_mode %}Edit{% else %}Add{% endif %} {{ object_type|capitalize }}
+        </h2>
+        <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Inventory
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="mb-4">
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('add_object', object_type='asset') }}" class="btn btn-outline-primary {% if object_type == 'asset' %}active{% endif %}">Asset</a>
+                <a href="{{ url_for('add_object', object_type='consumable') }}" class="btn btn-outline-primary {% if object_type == 'consumable' %}active{% endif %}">Consumable</a>
+                <a href="{{ url_for('add_object', object_type='component') }}" class="btn btn-outline-primary {% if object_type == 'component' %}active{% endif %}">Component</a>
+                <a href="{{ url_for('add_object', object_type='person') }}" class="btn btn-outline-primary {% if object_type == 'person' %}active{% endif %}">Person</a>
+                <a href="{{ url_for('add_object', object_type='pet') }}" class="btn btn-outline-primary {% if object_type == 'pet' %}active{% endif %}">Pet</a>
+                <a href="{{ url_for('add_object', object_type='service') }}" class="btn btn-outline-primary {% if object_type == 'service' %}active{% endif %}">Service</a>
+                <a href="{{ url_for('add_object', object_type='software') }}" class="btn btn-outline-primary {% if object_type == 'software' %}active{% endif %}">Software</a>
+            </div>
+        </div>
+        
+        <form id="objectForm" method="POST" class="needs-validation" novalidate>
+            <input type="hidden" name="object_type" value="{{ object_type }}">
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <!-- Common fields for all object types -->
+                    <div class="form-group mb-3">
+                        <label for="objectName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="objectName" name="name" required>
+                        <div class="invalid-feedback">Please provide a name.</div>
+                    </div>
+                    
+                    <!-- Hidden input for object type to be used by JavaScript -->
+                    <input type="hidden" id="object-type-select" value="{{ object_type }}">
+                    
+                    <!-- Category selection (multi-select) -->
+                    <div class="form-group mb-3 category-select-container">
+                        <label for="categories" class="form-label">Categories</label>
+                        <div class="input-group">
+                            <select class="form-select" id="categories" name="categories" multiple size="4">
+                                <!-- Categories will be loaded dynamically via JavaScript -->
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="create-category-btn" title="Create a new category">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Hold Ctrl (or Cmd on Mac) to select multiple categories</div>
+                        
+                        <!-- Category preview area -->
+                        <div id="category-preview" class="mt-2"></div>
+                    </div>
+                    
+                    <!-- Category suggestion area, shown only in edit mode -->
+                    {% if edit_mode and object %}
+                    <div class="form-group mb-3">
+                        <label class="form-label">Category Suggestion</label>
+                        <button type="button" id="suggest-category-button" class="btn btn-outline-info" data-object-id="{{ object.id }}">
+                            <i class="fas fa-magic me-1"></i> Suggest Category
+                        </button>
+                        <div id="category-suggestion-result" class="mt-2 d-none"></div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="form-group mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    {% if object_type in ['asset', 'component', 'consumable'] %}
+                        <!-- Fields for physical items -->
+                        <div class="form-group mb-3">
+                            <label for="objectImage" class="form-label">Image</label>
+                            <input type="file" class="form-control" id="objectImage" name="object_image" accept="image/*">
+                            <div class="form-text">Upload an image to analyze and auto-fill details</div>
+                        </div>
+                        
+                        {% if object_type == 'asset' %}
+                            <div class="form-group mb-3">
+                                <label class="form-label">Analyze Image</label>
+                                <div class="d-flex gap-2">
+                                    <button type="button" id="analyzeImageOpenAIBtn" class="btn btn-info flex-grow-1">
+                                        <i class="fas fa-camera me-1"></i> Analyze with OpenAI
+                                    </button>
+                                    <button type="button" id="analyzeImageClaudeBtn" class="btn btn-primary flex-grow-1">
+                                        <i class="fas fa-camera me-1"></i> Analyze with Claude
+                                    </button>
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="manufacturer" class="form-label">Manufacturer</label>
+                            <input type="text" class="form-control" id="manufacturer" name="manufacturer">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="model" class="form-label">Model</label>
+                            <input type="text" class="form-control" id="model" name="model">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="upc" class="form-label">UPC Code</label>
+                            <input type="text" class="form-control" id="upc" name="upc" 
+                                   placeholder="Universal Product Code">
+                        </div>
+                        
+                        {% if object_type == 'asset' %}
+                            <div class="form-group mb-3">
+                                <label for="serial_number" class="form-label">Serial Number</label>
+                                <input type="text" class="form-control" id="serial_number" name="serial_number" 
+                                       placeholder="Unique device serial number">
+                                <div class="form-text">Assets with serial numbers must have quantity=1</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Auto-Fill Using UPC/Model</label>
+                                <div class="d-flex gap-2 mb-3">
+                                    <button type="button" id="lookupAssetOpenAIBtn" class="btn btn-info flex-grow-1">
+                                        <i class="fas fa-magic me-1"></i> Lookup with OpenAI
+                                    </button>
+                                    <button type="button" id="lookupAssetClaudeBtn" class="btn btn-primary flex-grow-1">
+                                        <i class="fas fa-magic me-1"></i> Lookup with Claude
+                                    </button>
+                                </div>
+                                <div id="lookupResult" class="alert d-none mt-2"></div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if object_type == 'component' %}
+                        <div class="form-group mb-3">
+                            <label for="parent_id" class="form-label">Parent Asset</label>
+                            <select class="form-select" id="parent_id" name="parent_id">
+                                <option value="">No Parent (Standalone Component)</option>
+                                {% for parent in parent_objects %}
+                                <option value="{{ parent.id }}">{{ parent.data.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">The asset this component belongs to</div>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    {% if object_type in ['asset', 'component', 'consumable', 'service', 'software'] %}
+                        <!-- Value-related fields -->
+                        <div class="form-group mb-3">
+                            <label for="acquisitionDate" class="form-label">Acquisition Date</label>
+                            <input type="date" class="form-control" id="acquisitionDate" name="acquisition_date" 
+                                   value="{{ today }}" {% if object_type in ['asset', 'component'] %}required{% endif %}>
+                            <div class="invalid-feedback">Please provide an acquisition date.</div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="acquisitionCost" class="form-label">Acquisition Cost</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" min="0" class="form-control" id="acquisitionCost" 
+                                       name="acquisition_cost" placeholder="0.00">
+                            </div>
+                            <small class="form-text text-muted">Leave blank if unknown</small>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="createInvoice" name="create_invoice" value="true">
+                                <label class="form-check-label" for="createInvoice">
+                                    Create invoice record for this {{ object_type }}
+                                </label>
+                                <div class="form-text">Check this if you want to track the purchase with a receipt/invoice</div>
+                            </div>
+                        </div>
+                        
+                        {% if object_type in ['asset', 'component'] %}
+                            <div class="form-group mb-3">
+                                <label for="estimatedValue" class="form-label">Estimated Current Value</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="estimatedValue" 
+                                           name="estimated_value" placeholder="0.00">
+                                </div>
+                                <small class="form-text text-muted">Can be auto-filled using the lookup feature</small>
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="usefulLife" class="form-label">Useful Life (years)</label>
+                                <input type="number" step="1" min="0" class="form-control" id="usefulLife" 
+                                       name="useful_life_years" placeholder="0">
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if object_type in ['asset', 'component', 'consumable'] %}
+                        <div class="form-group mb-3">
+                            <label for="quantity" class="form-label">Quantity</label>
+                            <input type="number" step="1" min="1" class="form-control" id="quantity" 
+                                   name="quantity" value="1">
+                            {% if object_type == 'asset' %}
+                            <div id="quantityWarning" class="form-text text-warning d-none">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                Assets with serial numbers must have quantity of 1
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if object_type == 'consumable' %}
+                        <div class="form-group mb-3">
+                            <label for="stock_level" class="form-label">Current Stock Level</label>
+                            <input type="number" step="1" min="0" class="form-control" id="stock_level" 
+                                   name="stock_level" value="{{ object.data.current_stock|default(0) }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="expiration_date" class="form-label">Expiration Date</label>
+                            <input type="date" class="form-control" id="expiration_date" 
+                                   name="expiration_date" value="{{ object.data.expiration_date }}">
+                            <div class="form-text">When these items are expected to expire</div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="shelf_life" class="form-label">Shelf Life (Days)</label>
+                            <input type="number" step="1" min="0" class="form-control" id="shelf_life" 
+                                   name="shelf_life" value="{{ object.data.shelf_life|default(0) }}">
+                            <div class="form-text">How long this item typically lasts before expiring</div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="track_stock" name="track_stock" value="true" 
+                                       {% if object.data.track_stock %}checked{% endif %}>
+                                <label class="form-check-label" for="track_stock">
+                                    Keep track of stock
+                                </label>
+                                <div class="form-text">When checked, item will remain in system when quantity is 0 and create a reminder to restock</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="reorder_threshold" class="form-label">Reorder Threshold</label>
+                            <input type="number" step="1" min="0" class="form-control" id="reorder_threshold" 
+                                   name="reorder_threshold" value="{{ object.data.reorder_threshold|default(0) }}">
+                            <div class="form-text">When stock falls below this level, it's time to reorder</div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if object_type in ['service', 'software'] %}
+                        <div class="form-group mb-3">
+                            <label for="subscription_renewal" class="form-label">Renewal Date</label>
+                            <input type="date" class="form-control" id="subscription_renewal" name="subscription_renewal">
+                            <div class="form-text">When the subscription or service needs to be renewed</div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if object_type == 'person' %}
+                        <div class="form-group mb-3">
+                            <label for="contact_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="contact_email" name="contact_email">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="contact_phone" class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="contact_phone" name="contact_phone">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="address" class="form-label">Address</label>
+                            <textarea class="form-control" id="address" name="address" rows="3"></textarea>
+                        </div>
+                    {% endif %}
+                    
+                    {% if object_type == 'pet' %}
+                        <div class="form-group mb-3">
+                            <label for="breed" class="form-label">Breed</label>
+                            <input type="text" class="form-control" id="breed" name="breed">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="birth_date" class="form-label">Birth Date (Approx.)</label>
+                            <input type="date" class="form-control" id="birth_date" name="birth_date">
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if object_type in ['asset', 'component'] %}
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card bg-secondary">
+                        <div class="card-header">
+                            <h5 class="mb-0">Additional Specifications</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="specificationsContainer">
+                                <div class="specification-row row mb-2">
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-key" name="spec_keys[]" placeholder="e.g., Processor">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control spec-value" name="spec_values[]" placeholder="e.g., Intel Core i7">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger remove-spec-btn">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" id="addSpecBtn" class="btn btn-success mt-2">
+                                <i class="fas fa-plus me-1"></i> Add Specification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="form-group text-center mt-4 mb-3">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-1"></i> {% if edit_mode %}Update{% else %}Save{% endif %} {{ object_type|capitalize }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    const form = document.getElementById('objectForm');
+    
+    form.addEventListener('submit', function(event) {
+        if (!this.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        {% if object_type in ['asset', 'component'] %}
+        // Collect specifications into a JSON object
+        const specKeys = document.querySelectorAll('.spec-key');
+        const specValues = document.querySelectorAll('.spec-value');
+        const specifications = {};
+        
+        for (let i = 0; i < specKeys.length; i++) {
+            if (specKeys[i].value.trim() !== '' && specValues[i].value.trim() !== '') {
+                specifications[specKeys[i].value.trim()] = specValues[i].value.trim();
+            }
+        }
+        
+        // Add specifications as a hidden field
+        const specsInput = document.createElement('input');
+        specsInput.type = 'hidden';
+        specsInput.name = 'specifications';
+        specsInput.value = JSON.stringify(specifications);
+        this.appendChild(specsInput);
+        {% endif %}
+        
+        this.classList.add('was-validated');
+    });
+    
+    {% if object_type in ['asset', 'component'] %}
+    // Handle adding specification rows
+    const addSpecBtn = document.getElementById('addSpecBtn');
+    const specificationsContainer = document.getElementById('specificationsContainer');
+    
+    if (addSpecBtn && specificationsContainer) {
+        addSpecBtn.addEventListener('click', function() {
+            const newRow = document.createElement('div');
+            newRow.className = 'specification-row row mb-2';
+            newRow.innerHTML = `
+                <div class="col-md-5">
+                    <input type="text" class="form-control spec-key" name="spec_keys[]" placeholder="e.g., Processor">
+                </div>
+                <div class="col-md-5">
+                    <input type="text" class="form-control spec-value" name="spec_values[]" placeholder="e.g., Intel Core i7">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-danger remove-spec-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            specificationsContainer.appendChild(newRow);
+            
+            // Add event listener to the new remove button
+            const removeBtn = newRow.querySelector('.remove-spec-btn');
+            removeBtn.addEventListener('click', function() {
+                specificationsContainer.removeChild(newRow);
+            });
+        });
+        
+        // Add event listeners to existing remove buttons
+        document.querySelectorAll('.remove-spec-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const row = this.closest('.specification-row');
+                specificationsContainer.removeChild(row);
+            });
+        });
+    }
+    {% endif %}
+    
+    {% if object_type == 'asset' %}
+    // Serial number and quantity validation
+    const serialNumberInput = document.getElementById('serial_number');
+    const quantityInput = document.getElementById('quantity');
+    const quantityWarning = document.getElementById('quantityWarning');
+    
+    // Function to check if serial number requires quantity of 1
+    function validateSerialNumberAndQuantity() {
+        const serialNumber = serialNumberInput.value.trim();
+        const quantity = parseInt(quantityInput.value, 10);
+        
+        if (serialNumber && quantity > 1) {
+            // Show warning
+            quantityWarning.classList.remove('d-none');
+            quantityInput.classList.add('is-invalid');
+            quantityInput.value = 1; // Force quantity to be 1
+            return false;
+        } else {
+            // Hide warning
+            quantityWarning.classList.add('d-none');
+            quantityInput.classList.remove('is-invalid');
+            return true;
+        }
+    }
+    
+    // Add event listeners
+    if (serialNumberInput && quantityInput) {
+        serialNumberInput.addEventListener('input', validateSerialNumberAndQuantity);
+        quantityInput.addEventListener('input', validateSerialNumberAndQuantity);
+        
+        // Add validation before form submission
+        form.addEventListener('submit', function(event) {
+            if (!validateSerialNumberAndQuantity()) {
+                event.preventDefault();
+                event.stopPropagation();
+                alert('Assets with serial numbers must have a quantity of 1.');
+            }
+        });
+    }
+    
+    // Asset Image Analysis Functionality
+    const analyzeImageOpenAIBtn = document.getElementById('analyzeImageOpenAIBtn');
+    const analyzeImageClaudeBtn = document.getElementById('analyzeImageClaudeBtn');
+    const objectImageInput = document.getElementById('objectImage');
+    const lookupResult = document.getElementById('lookupResult');
+    
+    // Function to handle image analysis with either API
+    function analyzeImage(useClaudeAPI) {
+        // Check if an image was uploaded
+        if (!objectImageInput.files || !objectImageInput.files[0]) {
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "Please upload an image of the asset to analyze.";
+            lookupResult.classList.remove('d-none');
+            return;
+        }
+        
+        // Show loading state
+        const activeButton = useClaudeAPI ? analyzeImageClaudeBtn : analyzeImageOpenAIBtn;
+        const inactiveButton = useClaudeAPI ? analyzeImageOpenAIBtn : analyzeImageClaudeBtn;
+        
+        activeButton.disabled = true;
+        inactiveButton.disabled = true;
+        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
+        lookupResult.classList.add('d-none');
+        
+        // Create FormData and append the image
+        const formData = new FormData();
+        formData.append('image', objectImageInput.files[0]);
+        
+        // Determine the API endpoint
+        const apiEndpoint = useClaudeAPI ? '/api/analyze-asset-image-claude' : '/api/analyze-asset-image';
+        
+        // Call the API
+        fetch(apiEndpoint, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Reset buttons
+            activeButton.disabled = false;
+            inactiveButton.disabled = false;
+            activeButton.innerHTML = useClaudeAPI ? 
+                '<i class="fas fa-camera me-1"></i> Analyze with Claude' : 
+                '<i class="fas fa-camera me-1"></i> Analyze with OpenAI';
+            
+            if (data.success) {
+                // Fill form with the extracted data
+                if (data.name) document.getElementById('objectName').value = data.name;
+                if (data.manufacturer) document.getElementById('manufacturer').value = data.manufacturer;
+                if (data.model) document.getElementById('model').value = data.model;
+                if (data.category) {
+                    const categorySelect = document.getElementById('category');
+                    // Try to find exact match
+                    for (let i = 0; i < categorySelect.options.length; i++) {
+                        if (categorySelect.options[i].value.toLowerCase() === data.category.toLowerCase()) {
+                            categorySelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (data.estimated_value) document.getElementById('estimatedValue').value = data.estimated_value;
+                if (data.specifications) {
+                    // Clear existing specifications
+                    const rows = document.querySelectorAll('.specification-row');
+                    rows.forEach((row, index) => {
+                        if (index > 0) specificationsContainer.removeChild(row);
+                    });
+                    
+                    // Add the first spec to the existing row
+                    const specs = Object.entries(data.specifications);
+                    if (specs.length > 0) {
+                        const firstRow = document.querySelector('.specification-row');
+                        if (firstRow) {
+                            firstRow.querySelector('.spec-key').value = specs[0][0];
+                            firstRow.querySelector('.spec-value').value = specs[0][1];
+                        }
+                        
+                        // Add additional specs as new rows
+                        for (let i = 1; i < specs.length; i++) {
+                            addSpecBtn.click(); // Use the existing click handler
+                            
+                            // Set the values for the new row
+                            const newRow = document.querySelectorAll('.specification-row')[i];
+                            newRow.querySelector('.spec-key').value = specs[i][0];
+                            newRow.querySelector('.spec-value').value = specs[i][1];
+                        }
+                    }
+                }
+                
+                // Show success message
+                lookupResult.classList.remove('d-none', 'alert-danger');
+                lookupResult.classList.add('alert-success');
+                lookupResult.innerHTML = `
+                    <strong>Success!</strong> Image analyzed successfully.
+                    <p>${data.confidence ? `Confidence: ${(data.confidence * 100).toFixed(1)}%` : ''}</p>
+                `;
+            } else {
+                // Show error message
+                lookupResult.classList.remove('d-none', 'alert-success');
+                lookupResult.classList.add('alert-danger');
+                lookupResult.textContent = data.error || "Failed to analyze image. Please try again.";
+            }
+            
+            lookupResult.classList.remove('d-none');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Reset buttons
+            activeButton.disabled = false;
+            inactiveButton.disabled = false;
+            activeButton.innerHTML = useClaudeAPI ? 
+                '<i class="fas fa-camera me-1"></i> Analyze with Claude' : 
+                '<i class="fas fa-camera me-1"></i> Analyze with OpenAI';
+                
+            // Show error message
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "An error occurred while analyzing the image. Please try again.";
+            lookupResult.classList.remove('d-none');
+        });
+    }
+    
+    // Asset Lookup Functionality
+    const lookupAssetOpenAIBtn = document.getElementById('lookupAssetOpenAIBtn');
+    const lookupAssetClaudeBtn = document.getElementById('lookupAssetClaudeBtn');
+    
+    // Function to handle asset lookup with either API
+    function lookupAsset(useClaudeAPI) {
+        // Get relevant fields
+        const upc = document.getElementById('upc').value.trim();
+        const manufacturer = document.getElementById('manufacturer').value.trim();
+        const model = document.getElementById('model').value.trim();
+        
+        // Check if we have enough information to perform lookup
+        if (!upc && !manufacturer && !model) {
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "Please provide UPC, manufacturer, or model information.";
+            lookupResult.classList.remove('d-none');
+            return;
+        }
+        
+        // Show loading state
+        const activeButton = useClaudeAPI ? lookupAssetClaudeBtn : lookupAssetOpenAIBtn;
+        const inactiveButton = useClaudeAPI ? lookupAssetOpenAIBtn : lookupAssetClaudeBtn;
+        
+        activeButton.disabled = true;
+        inactiveButton.disabled = true;
+        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Looking up...';
+        lookupResult.classList.add('d-none');
+        
+        // Prepare query parameters
+        const params = new URLSearchParams();
+        if (upc) params.append('upc', upc);
+        if (manufacturer) params.append('oem', manufacturer);
+        if (model) params.append('model', model);
+        
+        // Determine the API endpoint
+        const apiEndpoint = useClaudeAPI ? '/api/lookup-asset-claude' : '/api/lookup-asset';
+        
+        // Call the API
+        fetch(`${apiEndpoint}?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            // Reset buttons
+            activeButton.disabled = false;
+            inactiveButton.disabled = false;
+            activeButton.innerHTML = useClaudeAPI ? 
+                '<i class="fas fa-magic me-1"></i> Lookup with Claude' : 
+                '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+            
+            if (data.success) {
+                // Fill form with the extracted data
+                if (data.name) document.getElementById('objectName').value = data.name;
+                if (data.manufacturer && !manufacturer) document.getElementById('manufacturer').value = data.manufacturer;
+                if (data.model && !model) document.getElementById('model').value = data.model;
+                if (data.category) {
+                    const categorySelect = document.getElementById('category');
+                    // Try to find exact match
+                    for (let i = 0; i < categorySelect.options.length; i++) {
+                        if (categorySelect.options[i].value.toLowerCase() === data.category.toLowerCase()) {
+                            categorySelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (data.estimated_value) document.getElementById('estimatedValue').value = data.estimated_value;
+                if (data.description) document.getElementById('description').value = data.description;
+                if (data.specifications) {
+                    // Clear existing specifications
+                    const rows = document.querySelectorAll('.specification-row');
+                    rows.forEach((row, index) => {
+                        if (index > 0) specificationsContainer.removeChild(row);
+                    });
+                    
+                    // Add the first spec to the existing row
+                    const specs = Object.entries(data.specifications);
+                    if (specs.length > 0) {
+                        const firstRow = document.querySelector('.specification-row');
+                        if (firstRow) {
+                            firstRow.querySelector('.spec-key').value = specs[0][0];
+                            firstRow.querySelector('.spec-value').value = specs[0][1];
+                        }
+                        
+                        // Add additional specs as new rows
+                        for (let i = 1; i < specs.length; i++) {
+                            addSpecBtn.click(); // Use the existing click handler
+                            
+                            // Set the values for the new row
+                            const newRow = document.querySelectorAll('.specification-row')[i];
+                            newRow.querySelector('.spec-key').value = specs[i][0];
+                            newRow.querySelector('.spec-value').value = specs[i][1];
+                        }
+                    }
+                }
+                
+                // Show success message
+                lookupResult.classList.remove('d-none', 'alert-danger');
+                lookupResult.classList.add('alert-success');
+                lookupResult.innerHTML = `
+                    <strong>Success!</strong> Asset information retrieved successfully.
+                    <p>${data.confidence ? `Confidence: ${(data.confidence * 100).toFixed(1)}%` : ''}</p>
+                `;
+            } else {
+                // Show error message
+                lookupResult.classList.remove('d-none', 'alert-success');
+                lookupResult.classList.add('alert-danger');
+                lookupResult.textContent = data.error || "Failed to look up asset information. Please try again.";
+            }
+            
+            lookupResult.classList.remove('d-none');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Reset buttons
+            activeButton.disabled = false;
+            inactiveButton.disabled = false;
+            activeButton.innerHTML = useClaudeAPI ? 
+                '<i class="fas fa-magic me-1"></i> Lookup with Claude' : 
+                '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+                
+            // Show error message
+            lookupResult.classList.remove('d-none', 'alert-success');
+            lookupResult.classList.add('alert-danger');
+            lookupResult.textContent = "An error occurred while looking up asset information. Please try again.";
+            lookupResult.classList.remove('d-none');
+        });
+    }
+    
+    // Attach event listeners for analysis and lookup if buttons exist
+    if (analyzeImageOpenAIBtn) {
+        analyzeImageOpenAIBtn.addEventListener('click', function() {
+            analyzeImage(false);
+        });
+    }
+    
+    if (analyzeImageClaudeBtn) {
+        analyzeImageClaudeBtn.addEventListener('click', function() {
+            analyzeImage(true);
+        });
+    }
+    
+    if (lookupAssetOpenAIBtn) {
+        lookupAssetOpenAIBtn.addEventListener('click', function() {
+            lookupAsset(false);
+        });
+    }
+    
+    if (lookupAssetClaudeBtn) {
+        lookupAssetClaudeBtn.addEventListener('click', function() {
+            lookupAsset(true);
+        });
+    }
+    {% endif %}
+});
+</script>
+
+<!-- Include the categories.js script -->
+<script src="{{ url_for('static', filename='js/categories.js') }}"></script>
+{% endblock %}
+
+<!-- Category Creation Modal -->
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCategoryModalLabel">Create New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="category-form">
+                    <input type="hidden" id="category-object-type" name="category-object-type" value="">
+                    
+                    <div class="mb-3">
+                        <label for="category-name" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="category-name" name="category-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category-description" class="form-label">Description</label>
+                        <textarea class="form-control" id="category-description" name="category-description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category-icon" class="form-label">Icon (FontAwesome)</label>
+                        <input type="text" class="form-control" id="category-icon" name="category-icon" 
+                               placeholder="fa-laptop, fa-box-open, etc.">
+                        <div class="form-text">Enter a FontAwesome icon name without the 'fas' prefix</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category-color" class="form-label">Color</label>
+                        <input type="text" class="form-control" id="category-color" name="category-color" 
+                               placeholder="#RRGGBB or CSS color name">
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Category</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

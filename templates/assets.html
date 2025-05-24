@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Asset Action Results Modal -->
+<div class="modal fade" id="assetActionModal" tabindex="-1" aria-labelledby="assetActionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assetActionModalLabel">Asset Action</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="assetActionSpinner" class="text-center d-none">
+          <div class="spinner-border text-light mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p id="actionStatusText">Processing...</p>
+        </div>
+        <div id="assetActionResult" class="alert d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <a href="javascript:location.reload()" class="btn btn-primary" id="refreshBtn">Refresh Page</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-laptop me-2"></i>
+            Asset Tracking
+        </h2>
+        <div class="btn-group">
+            <a href="{{ url_for('add_asset') }}" class="btn btn-success">
+                <i class="fas fa-plus me-1"></i> Add Asset Directly
+            </a>
+            <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary">
+                <i class="fas fa-receipt me-1"></i> Add Asset from Receipt
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if assets %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Asset Name</th>
+                            <th>Manufacturer</th>
+                            <th>Model</th>
+                            <th>Category</th>
+                            <th>Acquisition Date</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in assets %}
+                        <tr>
+                            <td>{{ asset.data.name }}</td>
+                            <td>{{ asset.data.manufacturer if asset.data.manufacturer else asset.data.vendor }}</td>
+                            <td>{{ asset.data.model if asset.data.model else asset.data.model_number }}</td>
+                            <td>
+                                {% if asset.data.category %}
+                                    <span class="badge bg-info">{{ asset.data.category }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Uncategorized</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ asset.data.acquisition_date }}</td>
+                            <td>
+                                {% if asset.data.estimated_value %}
+                                    <span class="text-success">${{ "%.2f"|format(asset.data.estimated_value) }}</span>
+                                    <small class="text-muted">(orig. ${{ "%.2f"|format(asset.data.acquisition_cost) }})</small>
+                                {% else %}
+                                    ${{ "%.2f"|format(asset.data.acquisition_cost) }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if asset.data.needs_approval %}
+                                    <span class="badge bg-warning text-dark">Needs Approval</span>
+                                {% elif asset.data.approved == false %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('view_receipt', receipt_id=asset.invoice_id) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-info re-evaluate-asset-btn" data-asset-id="{{ asset.id }}" title="Re-evaluate Asset">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                    {% if asset.data.needs_approval %}
+                                    <button type="button" class="btn btn-sm btn-success approve-asset-btn" data-asset-id="{{ asset.id }}">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger reject-asset-btn" data-asset-id="{{ asset.id }}">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-laptop fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No assets found</h4>
+                <p class="text-muted">Add your first asset by uploading a receipt and marking it as an asset.</p>
+                <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary mt-3">
+                    <i class="fas fa-upload me-1"></i> Upload Asset Receipt
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card bg-dark shadow mt-4">
+    <div class="card-header bg-dark">
+        <h3 class="mb-0">
+            <i class="fas fa-chart-pie me-2"></i>
+            Asset Summary
+        </h3>
+    </div>
+    <div class="card-body">
+        <div id="asset-analysis">
+            <py-script>
+import js
+from datetime import datetime
+
+# Get the assets data from Jinja
+assets_data = {{ assets_json|tojson }}
+
+if not assets_data:
+    js.document.getElementById("asset-analysis").innerHTML = """
+        <div class="alert alert-info">
+            No assets available for analysis. Add assets to see statistics.
+        </div>
+    """
+else:
+    # Process the data
+    total_acquisition = sum(asset['data'].get('acquisition_cost', 0) for asset in assets_data)
+    total_estimated = sum(asset['data'].get('estimated_value', asset['data'].get('acquisition_cost', 0)) for asset in assets_data)
+    
+    # Count assets by category
+    categories = {}
+    for asset in assets_data:
+        # Get asset value (use estimated_value if available, otherwise acquisition_cost)
+        asset_value = asset['data'].get('estimated_value', asset['data'].get('acquisition_cost', 0))
+        
+        category = asset['data'].get('category', 'Uncategorized')
+        if category in categories:
+            categories[category] += 1
+            categories[f"{category}_value"] = categories.get(f"{category}_value", 0) + asset_value
+        else:
+            categories[category] = 1
+            categories[f"{category}_value"] = asset_value
+    
+    # Create HTML for the analysis
+    html = f"""
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Assets</h6>
+                    <h2 class="display-5">{len(assets_data)}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Value</h6>
+                    <h2 class="display-5">${total_estimated:.2f}</h2>
+                    <small class="text-muted">${total_acquisition:.2f} original cost</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Average Value</h6>
+                    <h2 class="display-5">${(total_estimated / len(assets_data) if len(assets_data) > 0 else 0):.2f}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <h5>Assets by Category</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Count</th>
+                        <th class="text-end">Total Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    # Add rows for each category
+    for category in categories:
+        if not category.endswith('_value'):  # Skip the value entries
+            html += f"""
+                    <tr>
+                        <td>{category}</td>
+                        <td class="text-end">{categories[category]}</td>
+                        <td class="text-end">${categories.get(f"{category}_value", 0):.2f}</td>
+                    </tr>
+            """
+    
+    html += """
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="mt-4 text-center">
+        <p><em>Note: This is a simplified analysis. In a production environment, this would include more detailed reporting and visualizations.</em></p>
+    </div>
+    """
+    
+    js.document.getElementById("asset-analysis").innerHTML = html
+            </py-script>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Asset approval/rejection functionality
+    const approveButtons = document.querySelectorAll('.approve-asset-btn');
+    const rejectButtons = document.querySelectorAll('.reject-asset-btn');
+    const reEvaluateButtons = document.querySelectorAll('.re-evaluate-asset-btn');
+    const assetActionModal = new bootstrap.Modal(document.getElementById('assetActionModal'));
+    const assetActionResult = document.getElementById('assetActionResult');
+    const assetActionSpinner = document.getElementById('assetActionSpinner');
+    const actionStatusText = document.getElementById('actionStatusText');
+    const assetActionModalLabel = document.getElementById('assetActionModalLabel');
+    const refreshBtn = document.getElementById('refreshBtn');
+    
+    // Handler for approve buttons
+    approveButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            assetActionModalLabel.textContent = 'Approve Asset';
+            assetActionResult.classList.add('d-none');
+            assetActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Processing approval...';
+            refreshBtn.classList.add('d-none');
+            assetActionModal.show();
+            
+            // Call API to approve asset
+            fetch(`/api/approve-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    assetActionResult.classList.remove('alert-danger');
+                    assetActionResult.classList.add('alert-success');
+                    assetActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated status.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    assetActionResult.classList.remove('alert-success');
+                    assetActionResult.classList.add('alert-danger');
+                    assetActionResult.textContent = 'Error: ' + (data.error || 'Failed to approve asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                assetActionResult.classList.remove('alert-success');
+                assetActionResult.classList.add('alert-danger');
+                assetActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+    
+    // Handler for reject buttons
+    rejectButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            assetActionModalLabel.textContent = 'Reject Asset';
+            assetActionResult.classList.add('d-none');
+            assetActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Processing rejection...';
+            refreshBtn.classList.add('d-none');
+            assetActionModal.show();
+            
+            // Call API to reject asset
+            fetch(`/api/reject-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    assetActionResult.classList.remove('alert-danger');
+                    assetActionResult.classList.add('alert-success');
+                    assetActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated status.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    assetActionResult.classList.remove('alert-success');
+                    assetActionResult.classList.add('alert-danger');
+                    assetActionResult.textContent = 'Error: ' + (data.error || 'Failed to reject asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                assetActionResult.classList.remove('alert-success');
+                assetActionResult.classList.add('alert-danger');
+                assetActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+    
+    // Handler for re-evaluate buttons
+    reEvaluateButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            assetActionModalLabel.textContent = 'Re-evaluate Asset';
+            assetActionResult.classList.add('d-none');
+            assetActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Re-evaluating asset with OpenAI...';
+            refreshBtn.classList.add('d-none');
+            assetActionModal.show();
+            
+            // Call API to re-evaluate asset
+            fetch(`/api/re-evaluate-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    assetActionResult.classList.remove('alert-danger');
+                    assetActionResult.classList.add('alert-success');
+                    assetActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated information.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    assetActionResult.classList.remove('alert-success');
+                    assetActionResult.classList.add('alert-danger');
+                    assetActionResult.textContent = 'Error: ' + (data.error || 'Failed to re-evaluate asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                assetActionSpinner.classList.add('d-none');
+                assetActionResult.classList.remove('d-none');
+                assetActionResult.classList.remove('alert-success');
+                assetActionResult.classList.add('alert-danger');
+                assetActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
+
+{% endblock %}

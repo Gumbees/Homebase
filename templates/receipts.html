@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-receipt me-2"></i>
+            Receipt List
+        </h2>
+        <a href="{{ url_for('receipt_upload') }}" class="btn btn-success">
+            <i class="fas fa-plus me-1"></i> Upload New Receipt
+        </a>
+    </div>
+    <div class="card-body">
+        {% if invoices %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Receipt #</th>
+                            <th>Vendor</th>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td>{{ invoice.data.get('vendor', 'N/A') }}</td>
+                            <td>{{ invoice.data.get('date', 'N/A') }}</td>
+                            <td>${{ "%.2f"|format(invoice.data.get('total_amount', 0)) }}</td>
+                            <td>
+                                {% if invoice.data.get('is_asset') %}
+                                    <span class="badge bg-primary">Asset</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Expense</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if invoice.is_paid %}
+                                    <span class="badge bg-success">Paid</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Unpaid</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_receipt', receipt_id=invoice.id) }}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-receipt fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No receipts found</h4>
+                <p class="text-muted">Upload your first receipt to get started.</p>
+                <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary mt-3">
+                    <i class="fas fa-upload me-1"></i> Upload Receipt
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card bg-dark shadow mt-4">
+    <div class="card-header bg-dark">
+        <h3 class="mb-0">
+            <i class="fas fa-chart-bar me-2"></i>
+            Receipt Summary
+        </h3>
+    </div>
+    <div class="card-body">
+        <div id="receipt-analysis">
+            <py-script>
+import js
+from datetime import datetime
+
+# Get the invoices data from Jinja
+invoices_data = {{ invoices_json|tojson }}
+
+if not invoices_data:
+    js.document.getElementById("receipt-analysis").innerHTML = """
+        <div class="alert alert-info">
+            No receipts available for analysis. Upload receipts to see statistics.
+        </div>
+    """
+else:
+    # Process the data
+    total_amount = sum(invoice['data'].get('total_amount', 0) for invoice in invoices_data)
+    asset_count = sum(1 for invoice in invoices_data if invoice['data'].get('is_asset', False))
+    expense_count = len(invoices_data) - asset_count
+    
+    # Get the amount of assets and expenses
+    asset_amount = sum(invoice['data'].get('total_amount', 0) for invoice in invoices_data if invoice['data'].get('is_asset', False))
+    expense_amount = total_amount - asset_amount
+    
+    # Create HTML for the analysis
+    html = f"""
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Receipts</h6>
+                    <h2 class="display-5">{len(invoices_data)}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Amount</h6>
+                    <h2 class="display-5">${total_amount:.2f}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Assets</h6>
+                    <h2 class="display-5">{asset_count}</h2>
+                    <p class="mb-0">${asset_amount:.2f}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Expenses</h6>
+                    <h2 class="display-5">{expense_count}</h2>
+                    <p class="mb-0">${expense_amount:.2f}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4 text-center">
+        <p><em>Note: This is a simplified analysis. In a production environment, this would include more detailed reporting.</em></p>
+    </div>
+    """
+    
+    js.document.getElementById("receipt-analysis").innerHTML = html
+            </py-script>
+        </div>
+    </div>
+</div>
+{% endblock %}

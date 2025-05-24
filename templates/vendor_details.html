@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card bg-dark shadow mb-4">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-store me-2"></i>
+            {{ vendor.name }}
+        </h2>
+        <div>
+            <button id="reEvaluateVendorBtn" class="btn btn-outline-primary" data-vendor-id="{{ vendor.id }}">
+                <i class="fas fa-sync-alt me-1"></i> Re-evaluate
+            </button>
+            <a href="{{ url_for('edit_vendor', vendor_id=vendor.id) }}" class="btn btn-outline-warning ms-2">
+                <i class="fas fa-edit me-1"></i> Edit
+            </a>
+            <a href="{{ url_for('vendors') }}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-arrow-left me-1"></i> Back to Vendors
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Contact Information</h4>
+                <hr>
+                <p>
+                    <strong>Email:</strong> 
+                    {% if vendor.contact_info and vendor.contact_info.email %}
+                        <a href="mailto:{{ vendor.contact_info.email }}">{{ vendor.contact_info.email }}</a>
+                    {% else %}
+                        <span class="text-muted">No email provided</span>
+                    {% endif %}
+                    <br>
+                    
+                    <strong>Phone:</strong> 
+                    {% if vendor.contact_info and vendor.contact_info.phone %}
+                        <a href="tel:{{ vendor.contact_info.phone }}">{{ vendor.contact_info.phone }}</a>
+                    {% else %}
+                        <span class="text-muted">No phone provided</span>
+                    {% endif %}
+                    <br>
+                    
+                    <strong>Address:</strong> 
+                    {% if vendor.contact_info and vendor.contact_info.address %}
+                        {{ vendor.contact_info.address }}
+                    {% else %}
+                        <span class="text-muted">No address provided</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h4>Summary</h4>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6 text-center">
+                        <div class="card bg-dark mb-3">
+                            <div class="card-body">
+                                <h5 class="mb-0">Total Receipts</h5>
+                                <h3 class="display-4">{{ invoices|length }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <div class="card bg-dark mb-3">
+                            <div class="card-body">
+                                <h5 class="mb-0">Total Spent</h5>
+                                {% set total_spent = 0 %}
+                                {% for invoice in invoices %}
+                                    {% set total_spent = total_spent + invoice.data.get('total_amount', 0) %}
+                                {% endfor %}
+                                <h3 class="display-4">${{ "%.2f"|format(total_spent) }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <h4 class="mt-4">Receipts/Invoices</h4>
+        <hr>
+        {% if invoices %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Receipt #</th>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Description</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td>{{ invoice.data.get('date', 'N/A') }}</td>
+                            <td>${{ "%.2f"|format(invoice.data.get('total_amount', 0)) }}</td>
+                            <td>{{ invoice.data.get('description', 'N/A') }}</td>
+                            <td>
+                                {% if invoice.data.get('is_asset') %}
+                                    <span class="badge bg-primary">Asset</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Expense</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if invoice.is_paid %}
+                                    <span class="badge bg-success">Paid</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Unpaid</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_receipt', receipt_id=invoice.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No receipts/invoices found for this vendor.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Re-evaluate vendor button
+    const reEvaluateVendorBtn = document.getElementById('reEvaluateVendorBtn');
+    
+    if (reEvaluateVendorBtn) {
+        reEvaluateVendorBtn.addEventListener('click', function() {
+            const vendorId = reEvaluateVendorBtn.getAttribute('data-vendor-id');
+            if (!vendorId) return;
+            
+            // Disable button and show a temporary spinner
+            reEvaluateVendorBtn.disabled = true;
+            const originalBtnText = reEvaluateVendorBtn.innerHTML;
+            reEvaluateVendorBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Re-evaluating...';
+            
+            // Call API to re-evaluate vendor
+            fetch(`/api/re-evaluate-vendor/${vendorId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Enable button and restore text
+                reEvaluateVendorBtn.disabled = false;
+                reEvaluateVendorBtn.innerHTML = originalBtnText;
+                
+                if (data.success) {
+                    // Show success message and reload page
+                    alert('Vendor successfully re-evaluated! Page will refresh to show updates.');
+                    location.reload();
+                } else {
+                    // Show error message
+                    alert('Error: ' + (data.error || 'Failed to re-evaluate vendor'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Enable button and restore text
+                reEvaluateVendorBtn.disabled = false;
+                reEvaluateVendorBtn.innerHTML = originalBtnText;
+                alert('An error occurred. Please try again.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
+
+{% endblock %}

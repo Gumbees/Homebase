@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark">
+        <h2 class="mb-0">
+            <i class="fas fa-store me-2"></i>
+            {% if vendor %}Edit Vendor{% else %}Add New Vendor{% endif %}
+        </h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{% if vendor %}{{ url_for('edit_vendor', vendor_id=vendor.id) }}{% else %}{{ url_for('add_vendor') }}{% endif %}">
+            <div class="mb-3">
+                <label for="name" class="form-label">Vendor Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="name" name="name" value="{% if vendor %}{{ vendor.name }}{% endif %}" required>
+                <div class="form-text">The name of the business or individual vendor.</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="email" class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="email" name="email" value="{% if vendor and vendor.contact_info %}{{ vendor.contact_info.email }}{% endif %}">
+            </div>
+            
+            <div class="mb-3">
+                <label for="phone" class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="phone" name="phone" value="{% if vendor and vendor.contact_info %}{{ vendor.contact_info.phone }}{% endif %}">
+            </div>
+            
+            <div class="mb-3">
+                <label for="address" class="form-label">Address</label>
+                <textarea class="form-control" id="address" name="address" rows="3">{% if vendor and vendor.contact_info %}{{ vendor.contact_info.address }}{% endif %}</textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('vendors') }}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> {% if vendor %}Update{% else %}Save{% endif %} Vendor
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="mt-4">
+    <div class="card bg-dark shadow">
+        <div class="card-body">
+            <h4>Why manage vendors?</h4>
+            <p>
+                Tracking vendors helps you:
+            </p>
+            <ul>
+                <li>Easily categorize and search receipts by vendor</li>
+                <li>Monitor spending with specific vendors over time</li>
+                <li>Store important vendor contact information</li>
+                <li>Generate vendor-specific reports</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

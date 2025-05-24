@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ object.name }} - Attachments{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <span class="badge 
+                {% if object.object_type == 'asset' %}bg-success
+                {% elif object.object_type == 'consumable' %}bg-info
+                {% elif object.object_type == 'component' %}bg-primary
+                {% elif object.object_type == 'person' %}bg-warning
+                {% elif object.object_type == 'pet' %}bg-danger
+                {% elif object.object_type == 'service' %}bg-secondary
+                {% elif object.object_type == 'software' %}bg-dark
+                {% else %}bg-light{% endif %}">
+                {{ object.object_type }}
+            </span>
+            {{ object.name }}
+        </h1>
+        
+        <div>
+            <a href="{{ url_for('inventory') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Back to Inventory
+            </a>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Upload New Attachment</h5>
+                </div>
+                <div class="card-body">
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="attachment_file" class="form-label">File</label>
+                                    <input type="file" class="form-control" id="attachment_file" name="attachment_file" required>
+                                    <div class="form-text">Upload photos or documents related to this object.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="attachment_type" class="form-label">Attachment Type</label>
+                                    <select class="form-select" id="attachment_type" name="attachment_type">
+                                        <option value="photo" selected>Photo</option>
+                                        <option value="document">Document</option>
+                                        <option value="receipt">Receipt</option>
+                                        <option value="manual">Manual/Documentation</option>
+                                        <option value="warranty">Warranty</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <input type="text" class="form-control" id="description" name="description" placeholder="Optional description of this attachment">
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-1"></i> Upload
+                            </button>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="analyze-immediately" checked>
+                                <label class="form-check-label" for="analyze-immediately">Analyze with AI after upload</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Existing Attachments -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Attachments ({{ attachments|length }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if attachments %}
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                        {% for attachment in attachments %}
+                        <div class="col">
+                            <div class="card h-100">
+                                {% if attachment.file_type.startswith('image/') %}
+                                <img src="{{ url_for('view_object_attachment', attachment_id=attachment.id) }}" 
+                                     class="card-img-top attachment-thumbnail" alt="{{ attachment.description or attachment.filename }}">
+                                {% else %}
+                                <div class="card-img-top text-center py-5 bg-light">
+                                    <i class="fas 
+                                        {% if attachment.file_type.startswith('application/pdf') %}fa-file-pdf
+                                        {% elif attachment.file_type.startswith('text/') %}fa-file-alt
+                                        {% elif attachment.file_type.startswith('application/msword') or attachment.file_type.startswith('application/vnd.openxmlformats-officedocument.wordprocessingml') %}fa-file-word
+                                        {% elif attachment.file_type.startswith('application/vnd.ms-excel') or attachment.file_type.startswith('application/vnd.openxmlformats-officedocument.spreadsheetml') %}fa-file-excel
+                                        {% else %}fa-file
+                                        {% endif %} fa-3x"></i>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="card-body">
+                                    <h5 class="card-title text-truncate" title="{{ attachment.filename }}">
+                                        {{ attachment.filename }}
+                                    </h5>
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            {{ attachment.upload_date.strftime('%Y-%m-%d %H:%M') }}
+                                        </small>
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="badge 
+                                            {% if attachment.attachment_type == 'photo' %}bg-primary
+                                            {% elif attachment.attachment_type == 'document' %}bg-secondary
+                                            {% elif attachment.attachment_type == 'receipt' %}bg-success
+                                            {% elif attachment.attachment_type == 'manual' %}bg-info
+                                            {% elif attachment.attachment_type == 'warranty' %}bg-warning
+                                            {% else %}bg-dark{% endif %}">
+                                            {{ attachment.attachment_type }}
+                                        </span>
+                                        {% if attachment.description %}
+                                        <span class="ms-1">{{ attachment.description }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                
+                                <div class="card-footer">
+                                    <div class="d-flex justify-content-between">
+                                        <a href="{{ url_for('view_object_attachment', attachment_id=attachment.id) }}" 
+                                           class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <i class="fas fa-eye me-1"></i> View
+                                        </a>
+                                        
+                                        {% if attachment.ai_analyzed %}
+                                        <button class="btn btn-sm btn-outline-info view-analysis-btn"
+                                                data-result="{{ attachment.ai_analysis_result|tojson }}"
+                                                data-bs-toggle="modal" data-bs-target="#analysisModal">
+                                            <i class="fas fa-robot me-1"></i> View Analysis
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-outline-success analyze-btn"
+                                                data-id="{{ attachment.id }}"
+                                                {% if not attachment.file_type.startswith('image/') %}disabled{% endif %}>
+                                            <i class="fas fa-brain me-1"></i> Analyze with AI
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-file-image fa-3x mb-3 text-muted"></i>
+                        <p class="mb-0">No attachments found. Upload photos or documents using the form above.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Modal -->
+<div class="modal fade" id="analysisModal" tabindex="-1" aria-labelledby="analysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="analysisModalLabel">AI Analysis Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="analysis-summary" class="p-3 bg-light rounded mb-3"></div>
+                <h6>Detailed Results</h6>
+                <pre id="analysis-details" class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="apply-analysis-btn">Apply to Object</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle attachment upload form
+        const uploadForm = document.getElementById('upload-form');
+        
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const analyzeImmediately = document.getElementById('analyze-immediately').checked;
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.innerHTML;
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Uploading...';
+            
+            fetch('{{ url_for("api_add_object_attachment", object_id=object.id) }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    showAlert('success', data.message);
+                    
+                    // Clear the form
+                    uploadForm.reset();
+                    
+                    // If analyze immediately is checked, trigger AI analysis
+                    if (analyzeImmediately && data.attachment_id) {
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Analyzing...';
+                        
+                        analyzeAttachment(data.attachment_id)
+                            .then(() => {
+                                // Reload the page to show the new attachment
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 1000);
+                            })
+                            .catch(error => {
+                                console.error('Analysis error:', error);
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalBtnText;
+                                showAlert('danger', 'Error analyzing attachment: ' + error);
+                            });
+                    } else {
+                        // Reload the page to show the new attachment
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    }
+                } else {
+                    showAlert('danger', 'Error: ' + data.error);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                showAlert('danger', 'Error uploading attachment: ' + error);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            });
+        });
+        
+        // Handle analyze attachment buttons
+        document.querySelectorAll('.analyze-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const attachmentId = this.getAttribute('data-id');
+                const originalText = this.innerHTML;
+                
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Analyzing...';
+                
+                analyzeAttachment(attachmentId)
+                    .then(() => {
+                        // Reload the page to show the analysis results
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Analysis error:', error);
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                        showAlert('danger', 'Error analyzing attachment: ' + error);
+                    });
+            });
+        });
+        
+        // Handle view analysis buttons
+        document.querySelectorAll('.view-analysis-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const result = JSON.parse(this.getAttribute('data-result'));
+                
+                // Display summary
+                const summaryEl = document.getElementById('analysis-summary');
+                let summaryHTML = '<h6>AI Analysis Summary</h6>';
+                
+                if (result.product_info) {
+                    const product = result.product_info;
+                    summaryHTML += `
+                        <div class="mb-2"><strong>Product:</strong> ${product.name || 'Unknown'}</div>
+                        ${product.manufacturer ? `<div class="mb-2"><strong>Manufacturer:</strong> ${product.manufacturer}</div>` : ''}
+                        ${product.model ? `<div class="mb-2"><strong>Model:</strong> ${product.model}</div>` : ''}
+                        ${product.category ? `<div class="mb-2"><strong>Category:</strong> ${product.category}</div>` : ''}
+                        ${product.estimated_value ? `<div class="mb-2"><strong>Estimated Value:</strong> $${product.estimated_value}</div>` : ''}
+                        ${product.description ? `<div class="mb-2"><strong>Description:</strong> ${product.description}</div>` : ''}
+                    `;
+                } else {
+                    summaryHTML += `<div>${result.description || 'No summary available'}</div>`;
+                }
+                
+                summaryEl.innerHTML = summaryHTML;
+                
+                // Display detailed results
+                document.getElementById('analysis-details').textContent = JSON.stringify(result, null, 2);
+                
+                // Set up the apply button
+                const applyBtn = document.getElementById('apply-analysis-btn');
+                applyBtn.onclick = function() {
+                    // Logic to apply analysis results to the object
+                    applyAnalysisToObject(result);
+                };
+            });
+        });
+        
+        // Function to analyze an attachment with AI
+        function analyzeAttachment(attachmentId) {
+            return fetch(`/api/attachments/${attachmentId}/analyze`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            });
+        }
+        
+        // Function to apply analysis results to the object
+        function applyAnalysisToObject(result) {
+            if (!result.product_info) {
+                showAlert('warning', 'No product information to apply');
+                return;
+            }
+            
+            // Create update data
+            const updates = {};
+            const productInfo = result.product_info;
+            
+            // Map fields from analysis to object data
+            if (productInfo.name) updates.name = productInfo.name;
+            if (productInfo.manufacturer) updates.manufacturer = productInfo.manufacturer;
+            if (productInfo.model) updates.model = productInfo.model;
+            if (productInfo.category) updates.category = productInfo.category;
+            if (productInfo.estimated_value) updates.estimated_value = productInfo.estimated_value;
+            if (productInfo.description) updates.description = productInfo.description;
+            if (productInfo.specifications) updates.specifications = productInfo.specifications;
+            
+            // Send update to server
+            fetch(`/api/objects/{{ object.id }}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ updates })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', 'Object updated with analysis results');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showAlert('danger', 'Error updating object: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Update error:', error);
+                showAlert('danger', 'Error updating object: ' + error);
+            });
+        }
+        
+        // Utility function to show alerts
+        function showAlert(type, message) {
+            const alertHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            
+            const container = document.querySelector('.container');
+            container.insertAdjacentHTML('afterbegin', alertHTML);
+            
+            // Auto dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = document.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+    });
+</script>
+
+<style>
+    .attachment-thumbnail {
+        height: 200px;
+        object-fit: cover;
+    }
+</style>
+{% endblock %}

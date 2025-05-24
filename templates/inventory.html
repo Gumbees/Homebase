@@ -1,0 +1,684 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Object Action Results Modal -->
+<div class="modal fade" id="objectActionModal" tabindex="-1" aria-labelledby="objectActionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="objectActionModalLabel">Object Action</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="objectActionSpinner" class="text-center d-none">
+          <div class="spinner-border text-light mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p id="actionStatusText">Processing...</p>
+        </div>
+        <div id="objectActionResult" class="alert d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <a href="javascript:location.reload()" class="btn btn-primary" id="refreshBtn">Refresh Page</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Object Confirmation Modal -->
+<div class="modal fade" id="deleteObjectModal" tabindex="-1" aria-labelledby="deleteObjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteObjectModalLabel">Confirm Delete Object</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Warning:</strong> This action cannot be undone. Are you sure you want to delete this object?
+        </div>
+        <p>Object details:</p>
+        <ul>
+          <li>Name: <span id="objectNameToDelete"></span></li>
+          <li>Object ID: <span id="objectIdToDelete"></span></li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteObjectForm" method="post">
+          <button type="submit" class="btn btn-danger">
+            <i class="fas fa-trash me-1"></i> Yes, Delete Object
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card bg-dark shadow">
+    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="fas fa-boxes me-2"></i>
+            Inventory Management
+        </h2>
+        <div class="btn-group">
+            <a href="{{ url_for('add_object') }}" class="btn btn-success">
+                <i class="fas fa-plus me-1"></i> Add Object Directly
+            </a>
+            <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary">
+                <i class="fas fa-receipt me-1"></i> Add Object from Receipt
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <select class="form-select" id="object-type-filter">
+                        <option value="all" {% if selected_type == 'all' %}selected{% endif %}>All Objects</option>
+                        {% for type in object_types %}
+                        <option value="{{ type }}" {% if selected_type == type %}selected{% endif %}>{{ type|capitalize }}s</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-primary" id="apply-filter">Filter</button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="btn-group float-end">
+                    <button class="btn btn-secondary" id="view-grid-btn">
+                        <i class="fas fa-th"></i>
+                    </button>
+                    <button class="btn btn-secondary active" id="view-list-btn">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        {% if objects %}
+            <div class="table-responsive" id="list-view">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Type</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Date Added</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for obj in objects %}
+                        <tr>
+                            <td>
+                                <span class="badge 
+                                    {% if obj.object_type == 'asset' %}bg-primary
+                                    {% elif obj.object_type == 'consumable' %}bg-success
+                                    {% elif obj.object_type == 'component' %}bg-warning text-dark
+                                    {% elif obj.object_type == 'person' %}bg-info text-dark
+                                    {% elif obj.object_type == 'pet' %}bg-light text-dark
+                                    {% elif obj.object_type == 'service' %}bg-danger
+                                    {% elif obj.object_type == 'software' %}bg-secondary
+                                    {% else %}bg-dark{% endif %}">
+                                    {{ obj.object_type|capitalize }}
+                                </span>
+                            </td>
+                            <td>{{ obj.data.name }}</td>
+                            <td>
+                                {% if obj.data.category %}
+                                    <span class="badge bg-info">{{ obj.data.category }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Uncategorized</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ obj.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                {% if obj.object_type in ['asset', 'component', 'consumable', 'service', 'software'] %}
+                                    {% if obj.data.estimated_value %}
+                                        <span class="text-success">${{ "%.2f"|format(obj.data.estimated_value) }}</span>
+                                        {% if obj.data.acquisition_cost %}
+                                            <small class="text-muted">(orig. ${{ "%.2f"|format(obj.data.acquisition_cost) }})</small>
+                                        {% endif %}
+                                    {% elif obj.data.acquisition_cost %}
+                                        ${{ "%.2f"|format(obj.data.acquisition_cost) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if obj.data.needs_approval %}
+                                    <span class="badge bg-warning text-dark">Needs Approval</span>
+                                {% elif obj.data.approved == false %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    {% if obj.invoice_id %}
+                                    <a href="{{ url_for('view_receipt', receipt_id=obj.invoice_id) }}" class="btn btn-sm btn-primary" title="View Receipt">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if obj.object_type == 'asset' %}
+                                    <button type="button" class="btn btn-sm btn-info re-evaluate-asset-btn" data-asset-id="{{ obj.id }}" title="Re-evaluate Asset">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if obj.data.needs_approval and obj.object_type == 'asset' %}
+                                    <button type="button" class="btn btn-sm btn-success approve-asset-btn" data-asset-id="{{ obj.id }}">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger reject-asset-btn" data-asset-id="{{ obj.id }}">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
+                                        <i class="fas fa-images"></i>
+                                    </a>
+                                    
+                                    <button type="button" class="btn btn-sm btn-outline-danger delete-object-btn" data-object-id="{{ obj.id }}" data-object-name="{{ obj.data.name }}" title="Delete Object">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="row row-cols-1 row-cols-md-3 g-4 d-none" id="grid-view">
+                {% for obj in objects %}
+                <div class="col">
+                    <div class="card h-100 bg-dark border-secondary">
+                        {% if obj.object_type == 'asset' %}
+                            <div class="card-header bg-primary text-light">Asset</div>
+                        {% elif obj.object_type == 'consumable' %}
+                            <div class="card-header bg-success text-light">Consumable</div>
+                        {% elif obj.object_type == 'component' %}
+                            <div class="card-header bg-warning text-dark">Component</div>
+                        {% elif obj.object_type == 'person' %}
+                            <div class="card-header bg-info text-dark">Person</div>
+                        {% elif obj.object_type == 'pet' %}
+                            <div class="card-header bg-light text-dark">Pet</div>
+                        {% elif obj.object_type == 'service' %}
+                            <div class="card-header bg-danger text-light">Service</div>
+                        {% elif obj.object_type == 'software' %}
+                            <div class="card-header bg-secondary text-light">Software</div>
+                        {% else %}
+                            <div class="card-header bg-dark text-light">Other</div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ obj.data.name }}</h5>
+                            {% if obj.data.category %}
+                                <span class="badge bg-info mb-2">{{ obj.data.category }}</span>
+                            {% endif %}
+                            <p class="card-text">
+                                {% if obj.data.description %}
+                                    {{ obj.data.description|truncate(100) }}
+                                {% else %}
+                                    <em class="text-muted">No description</em>
+                                {% endif %}
+                            </p>
+                            {% if obj.object_type in ['asset', 'component', 'consumable'] %}
+                                {% if obj.data.manufacturer %}
+                                    <p class="mb-1"><strong>Manufacturer:</strong> {{ obj.data.manufacturer }}</p>
+                                {% endif %}
+                                {% if obj.data.model %}
+                                    <p class="mb-1"><strong>Model:</strong> {{ obj.data.model }}</p>
+                                {% endif %}
+                                {% if obj.data.acquisition_date %}
+                                    <p class="mb-1"><strong>Acquired:</strong> {{ obj.data.acquisition_date }}</p>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if obj.object_type == 'consumable' and obj.data.quantity %}
+                                <p class="mb-1"><strong>Quantity:</strong> {{ obj.data.quantity }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between align-items-center">
+                                {% if obj.object_type in ['asset', 'component', 'consumable', 'service', 'software'] and (obj.data.acquisition_cost or obj.data.estimated_value) %}
+                                    <small class="text-muted">
+                                        {% if obj.data.estimated_value %}
+                                            <strong>Value:</strong> ${{ "%.2f"|format(obj.data.estimated_value) }}
+                                        {% elif obj.data.acquisition_cost %}
+                                            <strong>Cost:</strong> ${{ "%.2f"|format(obj.data.acquisition_cost) }}
+                                        {% endif %}
+                                    </small>
+                                {% endif %}
+                                <div class="btn-group">
+                                    {% if obj.invoice_id %}
+                                    <a href="{{ url_for('view_receipt', receipt_id=obj.invoice_id) }}" class="btn btn-sm btn-primary" title="View Receipt">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if obj.object_type == 'asset' %}
+                                    <button type="button" class="btn btn-sm btn-info re-evaluate-asset-btn" data-asset-id="{{ obj.id }}" title="Re-evaluate Asset">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
+                                        <i class="fas fa-images"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-boxes fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No objects found</h4>
+                <p class="text-muted">Add your first inventory item by clicking the button below.</p>
+                <a href="{{ url_for('add_object') }}" class="btn btn-primary mt-3">
+                    <i class="fas fa-plus me-1"></i> Add New Object
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card bg-dark shadow mt-4">
+    <div class="card-header bg-dark">
+        <h3 class="mb-0">
+            <i class="fas fa-chart-pie me-2"></i>
+            Inventory Summary
+        </h3>
+    </div>
+    <div class="card-body">
+        <div id="inventory-analysis">
+            <py-script>
+import js
+from datetime import datetime
+
+# Get the objects data from Jinja
+objects_data = {{ objects_json|tojson }}
+
+if not objects_data:
+    js.document.getElementById("inventory-analysis").innerHTML = """
+        <div class="alert alert-info">
+            No objects available for analysis. Add objects to see statistics.
+        </div>
+    """
+else:
+    # Process the data
+    total_acquisition = sum(obj['data'].get('acquisition_cost', 0) for obj in objects_data 
+                           if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software'])
+    
+    total_estimated = sum(obj['data'].get('estimated_value', obj['data'].get('acquisition_cost', 0)) 
+                         for obj in objects_data 
+                         if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software'])
+    
+    # Count objects by type
+    object_types = {}
+    for obj in objects_data:
+        obj_type = obj['object_type']
+        if obj_type in object_types:
+            object_types[obj_type] += 1
+        else:
+            object_types[obj_type] = 1
+    
+    # Count objects by category
+    categories = {}
+    for obj in objects_data:
+        # Get object value (use estimated_value if available, otherwise acquisition_cost)
+        if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software']:
+            obj_value = obj['data'].get('estimated_value', obj['data'].get('acquisition_cost', 0))
+        else:
+            obj_value = 0
+        
+        category = obj['data'].get('category', 'Uncategorized')
+        if category in categories:
+            categories[category] += 1
+            categories[f"{category}_value"] = categories.get(f"{category}_value", 0) + obj_value
+        else:
+            categories[category] = 1
+            categories[f"{category}_value"] = obj_value
+    
+    # Create HTML for the analysis
+    html = f"""
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Objects</h6>
+                    <h2 class="display-5">{len(objects_data)}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Total Value</h6>
+                    <h2 class="display-5">${total_estimated:.2f}</h2>
+                    <small class="text-muted">${total_acquisition:.2f} original cost</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 bg-secondary">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Avg Value (Valued Items)</h6>
+                    <h2 class="display-5">${(total_estimated / max(1, sum(1 for obj in objects_data if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software']))):.2f}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6 mb-3">
+            <h5>Objects by Type</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-dark">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th class="text-end">Count</th>
+                            <th class="text-end">Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    """
+    
+    # Add rows for each object type
+    for obj_type, count in sorted(object_types.items(), key=lambda x: x[1], reverse=True):
+        percentage = (count / len(objects_data)) * 100
+        html += f"""
+                <tr>
+                    <td>{obj_type.capitalize()}</td>
+                    <td class="text-end">{count}</td>
+                    <td class="text-end">{percentage:.1f}%</td>
+                </tr>
+        """
+    
+    html += """
+                </tbody>
+            </table>
+        </div>
+    </div>
+        
+    <div class="col-md-6 mb-3">
+        <h5>Objects by Category</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Count</th>
+                        <th class="text-end">Total Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    # Add rows for each category
+    for category in sorted(categories.keys()):
+        if not category.endswith('_value'):  # Skip the value entries
+            html += f"""
+                    <tr>
+                        <td>{category}</td>
+                        <td class="text-end">{categories[category]}</td>
+                        <td class="text-end">${categories.get(f"{category}_value", 0):.2f}</td>
+                    </tr>
+            """
+    
+    html += """
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </div>
+    """
+    
+    js.document.getElementById("inventory-analysis").innerHTML = html
+            </py-script>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Object action functionality
+    const approveButtons = document.querySelectorAll('.approve-asset-btn');
+    const rejectButtons = document.querySelectorAll('.reject-asset-btn');
+    const reEvaluateButtons = document.querySelectorAll('.re-evaluate-asset-btn');
+    const deleteObjectButtons = document.querySelectorAll('.delete-object-btn');
+    const objectActionModal = new bootstrap.Modal(document.getElementById('objectActionModal'));
+    const deleteObjectModal = new bootstrap.Modal(document.getElementById('deleteObjectModal'));
+    const objectActionResult = document.getElementById('objectActionResult');
+    const objectActionSpinner = document.getElementById('objectActionSpinner');
+    const actionStatusText = document.getElementById('actionStatusText');
+    const objectActionModalLabel = document.getElementById('objectActionModalLabel');
+    const refreshBtn = document.getElementById('refreshBtn');
+    
+    // Delete object elements
+    const objectNameToDelete = document.getElementById('objectNameToDelete');
+    const objectIdToDelete = document.getElementById('objectIdToDelete');
+    const deleteObjectForm = document.getElementById('deleteObjectForm');
+    
+    // View toggle buttons
+    const viewGridBtn = document.getElementById('view-grid-btn');
+    const viewListBtn = document.getElementById('view-list-btn');
+    const gridView = document.getElementById('grid-view');
+    const listView = document.getElementById('list-view');
+    
+    // Object type filter
+    const objectTypeFilter = document.getElementById('object-type-filter');
+    const applyFilterBtn = document.getElementById('apply-filter');
+    
+    // Handler for filter button
+    applyFilterBtn.addEventListener('click', function() {
+        const objectType = objectTypeFilter.value;
+        window.location.href = `/inventory?object_type=${objectType}`;
+    });
+    
+    // Handler for view toggle buttons
+    viewGridBtn.addEventListener('click', function() {
+        gridView.classList.remove('d-none');
+        listView.classList.add('d-none');
+        viewGridBtn.classList.add('active');
+        viewListBtn.classList.remove('active');
+    });
+    
+    viewListBtn.addEventListener('click', function() {
+        listView.classList.remove('d-none');
+        gridView.classList.add('d-none');
+        viewListBtn.classList.add('active');
+        viewGridBtn.classList.remove('active');
+    });
+    
+    // Handler for approve buttons
+    approveButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            objectActionModalLabel.textContent = 'Approve Asset';
+            objectActionResult.classList.add('d-none');
+            objectActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Processing approval...';
+            refreshBtn.classList.add('d-none');
+            objectActionModal.show();
+            
+            // Call API to approve asset
+            fetch(`/api/approve-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    objectActionResult.classList.remove('alert-danger');
+                    objectActionResult.classList.add('alert-success');
+                    objectActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated status.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    objectActionResult.classList.remove('alert-success');
+                    objectActionResult.classList.add('alert-danger');
+                    objectActionResult.textContent = 'Error: ' + (data.error || 'Failed to approve asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                objectActionResult.classList.remove('alert-success');
+                objectActionResult.classList.add('alert-danger');
+                objectActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+    
+    // Handler for reject buttons
+    rejectButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            objectActionModalLabel.textContent = 'Reject Asset';
+            objectActionResult.classList.add('d-none');
+            objectActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Processing rejection...';
+            refreshBtn.classList.add('d-none');
+            objectActionModal.show();
+            
+            // Call API to reject asset
+            fetch(`/api/reject-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    objectActionResult.classList.remove('alert-danger');
+                    objectActionResult.classList.add('alert-success');
+                    objectActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated status.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    objectActionResult.classList.remove('alert-success');
+                    objectActionResult.classList.add('alert-danger');
+                    objectActionResult.textContent = 'Error: ' + (data.error || 'Failed to reject asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                objectActionResult.classList.remove('alert-success');
+                objectActionResult.classList.add('alert-danger');
+                objectActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+    
+    // Handler for re-evaluate buttons
+    reEvaluateButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assetId = this.getAttribute('data-asset-id');
+            
+            // Reset and show modal
+            objectActionModalLabel.textContent = 'Re-evaluate Asset';
+            objectActionResult.classList.add('d-none');
+            objectActionSpinner.classList.remove('d-none');
+            actionStatusText.textContent = 'Re-evaluating asset...';
+            refreshBtn.classList.add('d-none');
+            objectActionModal.show();
+            
+            // Call API to re-evaluate asset
+            fetch(`/api/re-evaluate-asset/${assetId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide spinner
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                
+                if (data.success) {
+                    // Show success message
+                    objectActionResult.classList.remove('alert-danger');
+                    objectActionResult.classList.add('alert-success');
+                    objectActionResult.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        The page will be refreshed to show the updated information.
+                    `;
+                    refreshBtn.classList.remove('d-none');
+                } else {
+                    // Show error message
+                    objectActionResult.classList.remove('alert-success');
+                    objectActionResult.classList.add('alert-danger');
+                    objectActionResult.textContent = 'Error: ' + (data.error || 'Failed to re-evaluate asset');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                objectActionSpinner.classList.add('d-none');
+                objectActionResult.classList.remove('d-none');
+                objectActionResult.classList.remove('alert-success');
+                objectActionResult.classList.add('alert-danger');
+                objectActionResult.textContent = 'An error occurred. Please try again.';
+            });
+        });
+    });
+
+    // Handler for delete object buttons
+    deleteObjectButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const objectId = this.getAttribute('data-object-id');
+            const objectName = this.getAttribute('data-object-name');
+            
+            // Set up the confirmation modal with object details
+            objectNameToDelete.textContent = objectName;
+            objectIdToDelete.textContent = objectId;
+            deleteObjectForm.action = `/object/delete/${objectId}`;
+            
+            // Show the confirmation modal
+            deleteObjectModal.show();
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}
