@@ -284,12 +284,12 @@ Objects support hierarchical relationships:
 # AI Settings support multiple providers
 ai_providers = {
     'openai': {
-        'api_key': 'sk-...',
+        'api_key': 'YOUR_OPENAI_API_KEY_HERE',
         'models': ['gpt-4', 'gpt-3.5-turbo'],
         'endpoint': 'https://api.openai.com/v1'
     },
     'anthropic': {
-        'api_key': 'sk-ant-...',
+        'api_key': 'YOUR_ANTHROPIC_API_KEY_HERE',
         'models': ['claude-3-sonnet', 'claude-3-haiku'],
         'endpoint': 'https://api.anthropic.com'
     },
@@ -618,8 +618,8 @@ with app.app_context():
 # Required environment variables
 export DATABASE_URL="postgresql://user:password@localhost:5432/homebase"
 export FLASK_SECRET_KEY="your-secret-key-here"
-export AI_PROVIDER_OPENAI_API_KEY="sk-..."
-export AI_PROVIDER_ANTHROPIC_API_KEY="sk-ant-..."
+export AI_PROVIDER_OPENAI_API_KEY="your_openai_key_here"
+export AI_PROVIDER_ANTHROPIC_API_KEY="your_anthropic_key_here"
 ```
 
 ### Production Considerations
