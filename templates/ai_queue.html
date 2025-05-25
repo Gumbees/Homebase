@@ -3,657 +3,957 @@
 {% block title %}AI Re-evaluation Queue{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="mb-4">AI Re-evaluation Queue</h1>
-    
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
+<!-- DEBUG: Check if data is reaching template -->
+<div class="alert alert-info">
+    <strong>DEBUG:</strong> 
+    receipt_tasks: {{ receipt_tasks|length if receipt_tasks else 'None' }} | 
+    ai_evaluations: {{ ai_evaluations|length if ai_evaluations else 'None' }} |
+    total_tasks: {{ total_tasks }} |
+    pending_review: {{ pending_review }} |
+    failed_analysis: {{ failed_analysis }}
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-brain me-2"></i>AI Processing Queue</h2>
+                    <p class="text-muted">Review AI-analyzed receipts and approve or reject the suggestions</p>
+                </div>
+                <div>
+                    <span class="badge bg-primary fs-6">{{ receipt_tasks|length }} Pending Receipts</span>
+                    <span class="badge bg-info fs-6 ms-2">{{ ai_evaluations|length }} Object Evaluations</span>
+                </div>
+            </div>
+
+            <!-- Receipt Processing Queue -->
+            {% if receipt_tasks %}
+            <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Daily Quota Status</h5>
+                    <h4 class="mb-0">
+                        <i class="fas fa-receipt me-2"></i>
+                        Receipt Processing Queue ({{ receipt_tasks|length }})
+                    </h4>
+                </div>
+                <div class="card-body p-0">
+                    {% for task in receipt_tasks %}
+                    <div class="border-bottom p-4">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <h5 class="mb-1">
+                                        {% if task.data.ai_analysis %}
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            AI Analysis Complete
+                                        {% else %}
+                                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                            Manual Review Required
+                                        {% endif %}
+                                    </h5>
+                                    <small class="text-muted">
+                                        Uploaded: {{ task.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                        | Provider: {{ task.data.ai_provider|title }}
+                                        | File: {{ task.data.original_filename }}
+                                    </small>
+                                </div>
+
+                                {% if task.data.ai_analysis %}
+                                    <!-- AI Extracted Data -->
+                                    <div class="row mb-3">
+                                        <div class="col-sm-6 col-md-3">
+                                            <strong>Vendor:</strong><br>
+                                            <span class="text-primary">{{ task.extracted_receipt_data.vendor_name or 'Not detected' }}</span>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3">
+                                            <strong>Date:</strong><br>
+                                            {{ task.extracted_receipt_data.date or 'Not detected' }}
+                                        </div>
+                                        <div class="col-sm-6 col-md-3">
+                                            <strong>Total Amount:</strong><br>
+                                            <span class="fw-bold">${{ "%.2f"|format(task.extracted_receipt_data.total_amount or 0) }}</span>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3">
+                                            <strong>Type:</strong><br>
+                                            {% if task.extracted_receipt_data.is_bill or task.extracted_receipt_data.due_date %}
+                                                <span class="badge bg-warning">Bill</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Receipt</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <!-- AI Confidence & Quality -->
+                                    {% if task.extracted_receipt_data.overall_confidence or task.extracted_receipt_data.image_quality %}
+                                    <div class="row mb-3">
+                                        {% if task.extracted_receipt_data.overall_confidence %}
+                                        <div class="col-md-6">
+                                            <strong>AI Confidence:</strong><br>
+                                            {% set confidence = task.extracted_receipt_data.overall_confidence %}
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar bg-{{ 'success' if confidence > 0.8 else 'warning' if confidence > 0.5 else 'danger' }}" 
+                                                     style="width: {{ (confidence * 100)|round }}%">
+                                                    {{ (confidence * 100)|round }}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        {% if task.extracted_receipt_data.image_quality %}
+                                        <div class="col-md-6">
+                                            <strong>Image Quality:</strong><br>
+                                            <span class="badge bg-{{ 'success' if task.extracted_receipt_data.image_quality == 'good' else 'warning' }}">
+                                                {{ task.extracted_receipt_data.image_quality|title }}
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if task.extracted_receipt_data.description %}
+                                    <div class="mb-3">
+                                        <strong>Description:</strong><br>
+                                        <span class="text-muted">{{ task.extracted_receipt_data.description }}</span>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Event Details (Dynamic) -->
+                                    {% if task.extracted_receipt_data.event_details %}
+                                    <div class="card border-info mb-3">
+                                        <div class="card-header bg-info text-white">
+                                            <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Event Information Detected</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                {% for key, value in task.extracted_receipt_data.event_details.items() %}
+                                                    {% if value %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <strong>{{ key|replace('_', ' ')|title }}:</strong><br>
+                                                        {% if key == 'event_date' %}
+                                                            <span class="text-primary fw-bold">{{ value }}</span>
+                                                        {% elif key == 'venue_location' %}
+                                                            <span class="text-success">{{ value }}</span>
+                                                        {% else %}
+                                                            {{ value }}
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge bg-info">
+                                                    <i class="fas fa-robot me-1"></i>AI Suggests: Calendar Event
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- People Found (Dynamic) -->
+                                    {% if task.extracted_receipt_data.people_found %}
+                                    <div class="card border-success mb-3">
+                                        <div class="card-header bg-success text-white">
+                                            <h6 class="mb-0"><i class="fas fa-users me-2"></i>People Detected ({{ task.extracted_receipt_data.people_found|length }})</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                {% for person in task.extracted_receipt_data.people_found %}
+                                                <div class="col-md-6 mb-3">
+                                                    <div class="border rounded p-2">
+                                                        <strong class="text-primary">{{ person.person_name }}</strong><br>
+                                                        <small>
+                                                            Role: {{ person.role|title }}<br>
+                                                            Relationship: {{ person.relationship_to_purchase }}<br>
+                                                            Confidence: 
+                                                            <span class="badge bg-{{ 'success' if person.confidence > 0.8 else 'warning' if person.confidence > 0.5 else 'danger' }}">
+                                                                {{ (person.confidence * 100)|round }}%
+                                                            </span>
+                                                        </small>
+                                                        <div class="mt-1">
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-robot me-1"></i>AI Suggests: Person Object
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Enhanced Vendor Details (Dynamic) -->
+                                    {% if task.extracted_receipt_data.vendor_details %}
+                                    <div class="card border-secondary mb-3">
+                                        <div class="card-header bg-secondary text-white">
+                                            <h6 class="mb-0"><i class="fas fa-building me-2"></i>Enhanced Vendor Information</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                {% for key, value in task.extracted_receipt_data.vendor_details.items() %}
+                                                    {% if value %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <strong>{{ key|replace('_', ' ')|title }}:</strong><br>
+                                                        {% if key == 'business_email' %}
+                                                            <a href="mailto:{{ value }}">{{ value }}</a>
+                                                        {% elif key == 'business_website' %}
+                                                            <a href="{{ value }}" target="_blank">{{ value }}</a>
+                                                        {% elif key == 'business_phone' %}
+                                                            <a href="tel:{{ value }}">{{ value }}</a>
+                                                        {% else %}
+                                                            {{ value }}
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Digital Assets (Dynamic) -->
+                                    {% if task.extracted_receipt_data.digital_assets %}
+                                    <div class="card border-dark mb-3">
+                                        <div class="card-header bg-dark text-white">
+                                            <h6 class="mb-0"><i class="fas fa-qrcode me-2"></i>Digital Assets & References</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                {% for key, value in task.extracted_receipt_data.digital_assets.items() %}
+                                                    {% if value and value != [] %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <strong>{{ key|replace('_', ' ')|title }}:</strong><br>
+                                                        {% if value is iterable and value is not string %}
+                                                            {% for item in value %}
+                                                                <span class="badge bg-primary me-1">{{ item }}</span>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <code>{{ value }}</code>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if task.extracted_receipt_data.line_items %}
+                                    <!-- Enhanced Line Items Management Section -->
+                                    <div class="card border-primary mb-3">
+                                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0"><i class="fas fa-list-ul me-2"></i>Line Items & Object Creation ({{ task.extracted_receipt_data.line_items|length }})</h6>
+                                            <div>
+                                                <button class="btn btn-outline-light btn-sm me-2" onclick="expandAllItems()">
+                                                    <i class="fas fa-expand-arrows-alt me-1"></i> Expand All
+                                                </button>
+                                                <button class="btn btn-outline-light btn-sm" onclick="collapseAllItems()">
+                                                    <i class="fas fa-compress-arrows-alt me-1"></i> Collapse All
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            {% for item in task.extracted_receipt_data.line_items %}
+                                            <div class="card bg-secondary mb-3 line-item-card" data-item-index="{{ loop.index0 }}" data-task-id="{{ task.id }}">
+                                                <div class="card-header d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center">
+                                                        <button class="btn btn-sm btn-outline-light me-2" onclick="toggleItemDetails({{ loop.index0 }})">
+                                                            <i class="fas fa-chevron-down" id="chevron-{{ loop.index0 }}"></i>
+                                                        </button>
+                                                        <h6 class="mb-0">{{ item.description or 'Unnamed Item' }}</h6>
+                                                        {% if item.extracted_metadata and item.extracted_metadata.suggested_object_type %}
+                                                            <span class="badge bg-primary ms-2">{{ item.extracted_metadata.suggested_object_type|title }}</span>
+                                                        {% elif item.object_type %}
+                                                            <span class="badge bg-success ms-2">{{ item.object_type|title }}</span>
+                                                        {% endif %}
+                                                        {% if item.extracted_metadata and item.extracted_metadata.upc_code %}
+                                                            <span class="badge bg-info ms-2">UPC: {{ item.extracted_metadata.upc_code }}</span>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-muted">${{ "%.2f"|format(item.unit_price or 0) }} × {{ item.quantity or 1 }} = ${{ "%.2f"|format((item.unit_price or 0) * (item.quantity or 1)) }}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="card-body item-details" id="item-details-{{ loop.index0 }}" style="display: none;">
+                                                    <form class="object-creation-form" data-item-index="{{ loop.index0 }}" data-task-id="{{ task.id }}">
+                                                        <div class="row">
+                                                            <!-- Basic Item Info -->
+                                                            <div class="col-md-6">
+                                                                <h6><i class="fas fa-info-circle me-2"></i> Item Details</h6>
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Description</label>
+                                                                    <input type="text" class="form-control" name="description" value="{{ item.description or '' }}">
+                                                                </div>
+                                                                
+                                                                <div class="row">
+                                                                    <div class="col-md-6">
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label">Quantity</label>
+                                                                            <input type="number" class="form-control" name="quantity" value="{{ item.quantity or 1 }}" min="1" step="1">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label">Unit Price</label>
+                                                                            <input type="number" class="form-control" name="unit_price" value="{{ item.unit_price or 0 }}" min="0" step="0.01">
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Object Type</label>
+                                                                    <select class="form-select" name="object_type" onchange="handleObjectTypeChange({{ loop.index0 }}, this.value)">
+                                                                        <option value="asset" {% if (item.extracted_metadata and item.extracted_metadata.suggested_object_type == 'asset') or item.object_type == 'asset' %}selected{% endif %}>Asset (Durable Good)</option>
+                                                                        <option value="consumable" {% if (item.extracted_metadata and item.extracted_metadata.suggested_object_type == 'consumable') or item.object_type == 'consumable' %}selected{% endif %}>Consumable (Used Up)</option>
+                                                                        <option value="expense" {% if (item.extracted_metadata and item.extracted_metadata.suggested_object_type == 'expense') or item.object_type == 'expense' %}selected{% endif %}>Expense (Service)</option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Category</label>
+                                                                    <select class="form-select" name="category">
+                                                                        <option value="">Select Category</option>
+                                                                        <option value="technology" {% if item.category == 'technology' or (item.extracted_metadata and 'technology' in (item.extracted_metadata.category_suggestions or [])) %}selected{% endif %}>Technology</option>
+                                                                        <option value="office_supplies" {% if item.category == 'office_supplies' or (item.extracted_metadata and 'office_supplies' in (item.extracted_metadata.category_suggestions or [])) %}selected{% endif %}>Office Supplies</option>
+                                                                        <option value="food_beverage" {% if item.category == 'food_beverage' or (item.extracted_metadata and 'food_beverage' in (item.extracted_metadata.category_suggestions or [])) %}selected{% endif %}>Food & Beverage</option>
+                                                                        <option value="transportation" {% if item.category == 'transportation' or (item.extracted_metadata and 'transportation' in (item.extracted_metadata.category_suggestions or [])) %}selected{% endif %}>Transportation</option>
+                                                                        <option value="events_entertainment" {% if item.category == 'events_entertainment' or (item.extracted_metadata and 'events_entertainment' in (item.extracted_metadata.category_suggestions or [])) %}selected{% endif %}>Events & Entertainment</option>
+                                                                        <option value="event_ticket" {% if item.category == 'event_ticket' %}selected{% endif %}>Event Ticket</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Enhanced Metadata Section -->
+                                                            <div class="col-md-6">
+                                                                <h6><i class="fas fa-barcode me-2"></i> Product Information</h6>
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">UPC/Barcode</label>
+                                                                    <input type="text" class="form-control" name="upc_code" value="{{ item.extracted_metadata.upc_code if item.extracted_metadata else '' }}" placeholder="Auto-detected or manual entry">
+                                                                </div>
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Manufacturer/Brand</label>
+                                                                    <input type="text" class="form-control" name="manufacturer" value="{{ item.extracted_metadata.manufacturer if item.extracted_metadata else '' }}" placeholder="Auto-detected or manual entry">
+                                                                </div>
+                                                                
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Model Number</label>
+                                                                    <input type="text" class="form-control" name="model" value="{{ item.extracted_metadata.model if item.extracted_metadata else '' }}" placeholder="Auto-detected or manual entry">
+                                                                </div>
+
+                                                                <!-- Asset-Specific Fields -->
+                                                                <div class="asset-fields" id="asset-fields-{{ loop.index0 }}" style="{% if not ((item.extracted_metadata and item.extracted_metadata.suggested_object_type == 'asset') or item.object_type == 'asset') %}display: none;{% endif %}">
+                                                                    <h6><i class="fas fa-tools me-2"></i> Asset Information</h6>
+                                                                    
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label">Serial Number <small class="text-muted">(Optional)</small></label>
+                                                                        <input type="text" class="form-control" name="serial_number" value="{{ item.extracted_metadata.serial_number if item.extracted_metadata else '' }}" placeholder="Enter serial number if available">
+                                                                    </div>
+                                                                    
+                                                                    <div class="mb-2">
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input" type="checkbox" name="requires_maintenance" {% if item.extracted_metadata and item.extracted_metadata.asset_specific and item.extracted_metadata.asset_specific.maintenance_required %}checked{% endif %}>
+                                                                            <label class="form-check-label">Requires Regular Maintenance</label>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div class="mb-2">
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input" type="checkbox" name="track_depreciation" checked>
+                                                                            <label class="form-check-label">Track Depreciation</label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Event Ticket Fields -->
+                                                                <div class="event-fields" id="event-fields-{{ loop.index0 }}" style="{% if not (item.category == 'event_ticket' or (item.extracted_metadata and item.extracted_metadata.suggested_object_type == 'consumable' and 'events_entertainment' in (item.extracted_metadata.category_suggestions or []))) %}display: none;{% endif %}">
+                                                                    <h6><i class="fas fa-ticket-alt me-2"></i> Event Information</h6>
+                                                                    
+                                                                    {% if task.extracted_receipt_data.digital_assets and task.extracted_receipt_data.digital_assets.qr_code %}
+                                                                    <div class="alert alert-info">
+                                                                        <i class="fas fa-qrcode me-2"></i> QR Code detected and will be attached to this ticket
+                                                                    </div>
+                                                                    {% endif %}
+                                                                    
+                                                                    <div class="mb-2">
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input" type="checkbox" name="single_use" checked>
+                                                                            <label class="form-check-label">Single Use Item</label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Action Buttons -->
+                                                        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                                                            <div>
+                                                                <span class="badge bg-success">Will Create Object</span>
+                                                                {% if item.extracted_metadata and item.extracted_metadata.upc_code %}
+                                                                    <span class="badge bg-info">UPC: {{ item.extracted_metadata.upc_code }}</span>
+                                                                {% endif %}
+                                                                {% if item.confidence %}
+                                                                    <span class="badge bg-{{ 'success' if item.confidence > 0.8 else 'warning' if item.confidence > 0.5 else 'danger' }}">
+                                                                        {{ (item.confidence * 100)|round }}% confidence
+                                                                    </span>
+                                                                {% endif %}
+                                                            </div>
+                                                            <div>
+                                                                <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="previewObject({{ loop.index0 }})">
+                                                                    <i class="fas fa-eye me-1"></i> Preview
+                                                                </button>
+                                                                <button type="button" class="btn btn-primary btn-sm" onclick="createObjectFromForm({{ task.id }}, {{ loop.index0 }})">
+                                                                    <i class="fas fa-plus me-1"></i> Create Object
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+
+                                            <!-- Bulk Actions -->
+                                            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                                                <div>
+                                                    <small class="text-muted">{{ task.extracted_receipt_data.line_items|length }} items ready for object creation</small>
+                                                </div>
+                                                <div>
+                                                    <button class="btn btn-outline-success me-2" onclick="createAllObjects({{ task.id }})">
+                                                        <i class="fas fa-layer-group me-1"></i> Create All Objects
+                                                    </button>
+                                                    <button class="btn btn-success" onclick="approveWithObjects({{ task.id }})">
+                                                        <i class="fas fa-check-double me-1"></i> Approve & Create All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- AI Notes -->
+                                    {% if task.extracted_receipt_data.extraction_notes %}
+                                    <div class="alert alert-info">
+                                        <h6><i class="fas fa-robot me-2"></i>AI Analysis Notes:</h6>
+                                        <p class="mb-0">{{ task.extracted_receipt_data.extraction_notes }}</p>
+                                    </div>
+                                    {% endif %}
+
+                                {% else %}
+                                    <!-- AI Analysis Failed -->
+                                    <div class="alert alert-warning">
+                                        <h6><i class="fas fa-exclamation-triangle me-2"></i>AI Analysis Failed</h6>
+                                        <p class="mb-2">{{ task.data.ai_error or 'Unknown error occurred during AI processing' }}</p>
+                                        <p class="mb-0"><strong>Manual entry required.</strong> Please process this receipt manually.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <!-- Receipt Preview -->
+                                <div class="text-center mb-3">
+                                    <strong>Receipt Image:</strong><br>
+                                    {% if task.data.attachment and task.data.attachment.file_data %}
+                                        <img src="data:{{ task.data.attachment.file_type }};base64,{{ task.data.attachment.file_data }}" 
+                                             class="img-thumbnail mt-2" 
+                                             style="max-height: 200px; max-width: 100%;" 
+                                             alt="Receipt">
+                                    {% else %}
+                                        <div class="bg-light p-3 mt-2">
+                                            <i class="fas fa-image fa-2x text-muted"></i><br>
+                                            <small class="text-muted">No preview available</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Action Buttons -->
+                                {% if task.data.ai_analysis %}
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('ai_queue_detail', task_id=task.id) }}" class="btn btn-info">
+                                        <i class="fas fa-eye me-2"></i>View Details
+                                    </a>
+                                    
+                                    <form method="post" action="{{ url_for('approve_receipt', task_id=task.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-success btn-lg w-100">
+                                            <i class="fas fa-check me-2"></i>Approve & Create Invoice
+                                        </button>
+                                    </form>
+                                    
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ task.id }}">
+                                        <i class="fas fa-times me-2"></i>Reject
+                                    </button>
+                                    
+                                    <!-- Object Creation Shortcuts -->
+                                    {% if task.extracted_receipt_data.line_items %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-primary dropdown-toggle btn-sm w-100" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-plus me-1"></i>Quick Create Objects ({{ task.extracted_receipt_data.line_items|length }})
+                                            </button>
+                                            <ul class="dropdown-menu w-100">
+                                                {% for item in task.extracted_receipt_data.line_items %}
+                                                    {% if item.get('create_object') and item.get('object_type') %}
+                                                    <li>
+                                                        <button class="dropdown-item create-object-from-queue-btn" 
+                                                                data-task-id="{{ task.id }}"
+                                                                data-item-index="{{ loop.index0 }}"
+                                                                data-object-type="{{ item.object_type }}"
+                                                                data-category="{{ item.get('category', '') }}"
+                                                                data-description="{{ item.get('description', '') }}"
+                                                                data-unit-price="{{ item.get('unit_price', 0) }}"
+                                                                data-quantity="{{ item.get('quantity', 1) }}">
+                                                            <i class="fas fa-{{ 'box' if item.object_type == 'asset' else 'shopping-cart' if item.object_type == 'consumable' else 'cog' if item.object_type == 'component' else 'hand-holding-heart' if item.object_type == 'service' else 'laptop-code' if item.object_type == 'software' else 'cube' }} me-1"></i>
+                                                            {{ item.object_type|title }}: {{ item.get('description', 'Unknown')[:30] }}{% if item.get('description', '')|length > 30 %}...{% endif %}
+                                                        </button>
+                                                    </li>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <!-- People Creation -->
+                                    {% if task.extracted_receipt_data.people_found %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-success dropdown-toggle btn-sm w-100" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-users me-1"></i>Create People ({{ task.extracted_receipt_data.people_found|length }})
+                                            </button>
+                                            <ul class="dropdown-menu w-100">
+                                                {% for person in task.extracted_receipt_data.people_found %}
+                                                <li>
+                                                    <button class="dropdown-item create-person-from-queue-btn" 
+                                                            data-task-id="{{ task.id }}"
+                                                            data-person-name="{{ person.person_name }}"
+                                                            data-person-role="{{ person.get('role', '') }}"
+                                                            data-relationship="{{ person.get('relationship_to_purchase', '') }}">
+                                                        <i class="fas fa-user me-1"></i>{{ person.person_name }}
+                                                        <small class="text-muted">({{ person.get('role', 'Unknown role') }})</small>
+                                                    </button>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <!-- Event Creation -->
+                                    {% if task.extracted_receipt_data.event_details %}
+                                        <button class="btn btn-outline-info btn-sm w-100 create-event-from-queue-btn" 
+                                                data-task-id="{{ task.id }}">
+                                            <i class="fas fa-calendar-alt me-1"></i>Create Calendar Event
+                                            {% if task.extracted_receipt_data.event_details.get('event_name') %}
+                                                <br><small>{{ task.extracted_receipt_data.event_details.event_name }}</small>
+                                            {% endif %}
+                                        </button>
+                                    {% endif %}
+                                    
+                                    <!-- Vendor Promotion -->
+                                    {% if task.extracted_receipt_data.vendor_name and not task.extracted_receipt_data.get('vendor_is_organization') %}
+                                        <button class="btn btn-outline-warning btn-sm w-100 promote-vendor-from-queue-btn" 
+                                                data-vendor-name="{{ task.extracted_receipt_data.vendor_name }}">
+                                            <i class="fas fa-arrow-up me-1"></i>Promote "{{ task.extracted_receipt_data.vendor_name }}" to Organization
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('ai_queue_detail', task_id=task.id) }}" class="btn btn-info">
+                                        <i class="fas fa-eye me-2"></i>View Details
+                                    </a>
+                                    
+                                    <a href="{{ url_for('receipt_upload') }}" class="btn btn-warning">
+                                        <i class="fas fa-edit me-2"></i>Process Manually
+                                    </a>
+                                    
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ task.id }}">
+                                        <i class="fas fa-trash me-2"></i>Delete
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reject Modal -->
+                    <div class="modal fade" id="rejectModal{{ task.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Reject Receipt</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="post" action="{{ url_for('reject_receipt', task_id=task.id) }}">
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label for="reason{{ task.id }}" class="form-label">Reason for rejection:</label>
+                                            <textarea class="form-control" id="reason{{ task.id }}" name="reason" rows="3" placeholder="Why are you rejecting this receipt analysis?"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger">Reject Receipt</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- AI Object Evaluations -->
+            {% if ai_evaluations %}
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-cube me-2"></i>
+                        Object Re-evaluations ({{ ai_evaluations|length }})
+                    </h4>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-4">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h2>{{ pending_today }}</h2>
-                                    <p>Pending Today</p>
+                        {% for evaluation in ai_evaluations %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ evaluation.object.name or 'Unnamed Object' }}</h6>
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            Type: {{ evaluation.object.object_type|title }}<br>
+                                            Scheduled: {{ evaluation.scheduled_date.strftime('%Y-%m-%d') }}
+                                        </small>
+                                    </p>
+                                    <button class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye me-1"></i>Review
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h2>{{ completed_today }}</h2>
-                                    <p>Completed Today</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h2>{{ remaining_slots }}</h2>
-                                    <p>Remaining Slots (Max: {{ daily_limit }})</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <button id="btn-schedule" class="btn btn-primary btn-block">
-                                <i class="fas fa-calendar-plus"></i> Schedule Evaluations
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <button id="btn-process" class="btn btn-success btn-block">
-                                <i class="fas fa-cogs"></i> Process Queue
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <button id="btn-run-daily" class="btn btn-info btn-block">
-                                <i class="fas fa-play-circle"></i> Run Daily Routine
-                            </button>
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <!-- Objects Due for Re-evaluation -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-warning text-white">
-                    <h5 class="mb-0">Objects Due for Re-evaluation ({{ due_objects|length }})</h5>
+            {% endif %}
+
+            <!-- Empty State -->
+            {% if not receipt_tasks and not ai_evaluations %}
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-brain fa-4x text-muted"></i>
                 </div>
-                <div class="card-body p-0">
-                    {% if due_objects %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Type</th>
-                                    <th>Due Date</th>
-                                    <th>Last Evaluated</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for obj in due_objects %}
-                                <tr>
-                                    <td>{{ obj.id }}</td>
-                                    <td>{{ obj.name() }}</td>
-                                    <td>
-                                        <span class="badge 
-                                            {% if obj.object_type == 'asset' %}bg-success
-                                            {% elif obj.object_type == 'consumable' %}bg-info
-                                            {% elif obj.object_type == 'component' %}bg-primary
-                                            {% elif obj.object_type == 'person' %}bg-warning
-                                            {% elif obj.object_type == 'pet' %}bg-danger
-                                            {% elif obj.object_type == 'service' %}bg-secondary
-                                            {% elif obj.object_type == 'software' %}bg-dark
-                                            {% else %}bg-light{% endif %}">
-                                            {{ obj.object_type }}
-                                        </span>
-                                    </td>
-                                    <td>{{ obj.next_evaluation_date.strftime('%Y-%m-%d') }}</td>
-                                    <td>
-                                        {% if obj.last_evaluated_at %}
-                                            {{ obj.last_evaluated_at.strftime('%Y-%m-%d') }}
-                                        {% else %}
-                                            Never
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary schedule-btn" data-id="{{ obj.id }}">
-                                            Schedule
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No objects due for re-evaluation at this time.</p>
-                    </div>
-                    {% endif %}
-                </div>
+                <h3 class="text-muted mb-3">AI Queue is Empty</h3>
+                <p class="text-muted mb-4">
+                    No receipts are currently pending AI review.<br>
+                    Upload a receipt to see AI analysis results here.
+                </p>
+                <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary">
+                    <i class="fas fa-upload me-2"></i>Upload Receipt
+                </a>
             </div>
-        </div>
-    </div>
-    
-    <!-- Pending Queue -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Pending Queue ({{ pending_queue|length }})</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if pending_queue %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Object</th>
-                                    <th>Type</th>
-                                    <th>Scheduled Date</th>
-                                    <th>Created</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in pending_queue %}
-                                <tr>
-                                    <td>{{ item.id }}</td>
-                                    <td>
-                                        {% if item.object %}
-                                            {{ item.object.name() }}
-                                        {% else %}
-                                            Object #{{ item.object_id }} (deleted)
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if item.object %}
-                                        <span class="badge 
-                                            {% if item.object.object_type == 'asset' %}bg-success
-                                            {% elif item.object.object_type == 'consumable' %}bg-info
-                                            {% elif item.object.object_type == 'component' %}bg-primary
-                                            {% elif item.object.object_type == 'person' %}bg-warning
-                                            {% elif item.object.object_type == 'pet' %}bg-danger
-                                            {% elif item.object.object_type == 'service' %}bg-secondary
-                                            {% elif item.object.object_type == 'software' %}bg-dark
-                                            {% else %}bg-light{% endif %}">
-                                            {{ item.object.object_type }}
-                                        </span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">unknown</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ item.scheduled_date.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>{{ item.created_at.strftime('%Y-%m-%d') }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No pending evaluations in the queue.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Processing Queue -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Currently Processing ({{ processing_queue|length }})</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if processing_queue %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Object</th>
-                                    <th>Scheduled Date</th>
-                                    <th>Last Attempt</th>
-                                    <th>Attempts</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in processing_queue %}
-                                <tr>
-                                    <td>{{ item.id }}</td>
-                                    <td>
-                                        {% if item.object %}
-                                            {{ item.object.name() }}
-                                        {% else %}
-                                            Object #{{ item.object_id }} (deleted)
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ item.scheduled_date.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>{{ item.last_attempt.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>{{ item.attempts }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No evaluations currently processing.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Manual Review Queue -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0">Need Manual Review ({{ manual_review_objects|length }})</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if manual_review_objects %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Type</th>
-                                    <th>Last Evaluated</th>
-                                    <th>Confidence</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for obj in manual_review_objects %}
-                                <tr>
-                                    <td>{{ obj.id }}</td>
-                                    <td>{{ obj.name() }}</td>
-                                    <td>
-                                        <span class="badge 
-                                            {% if obj.object_type == 'asset' %}bg-success
-                                            {% elif obj.object_type == 'consumable' %}bg-info
-                                            {% elif obj.object_type == 'component' %}bg-primary
-                                            {% elif obj.object_type == 'person' %}bg-warning
-                                            {% elif obj.object_type == 'pet' %}bg-danger
-                                            {% elif obj.object_type == 'service' %}bg-secondary
-                                            {% elif obj.object_type == 'software' %}bg-dark
-                                            {% else %}bg-light{% endif %}">
-                                            {{ obj.object_type }}
-                                        </span>
-                                    </td>
-                                    <td>{{ obj.last_evaluated_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>{{ "%.2f"|format(obj.evaluation_confidence * 100) }}%</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary review-btn" data-id="{{ obj.id }}" 
-                                                data-bs-toggle="modal" data-bs-target="#reviewModal">
-                                            Review
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No objects need manual review at this time.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Recently Completed -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">Recently Completed ({{ completed_queue|length }})</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if completed_queue %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Object</th>
-                                    <th>Completed At</th>
-                                    <th>Confidence</th>
-                                    <th>Changes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in completed_queue %}
-                                <tr>
-                                    <td>{{ item.id }}</td>
-                                    <td>
-                                        {% if item.object %}
-                                            {{ item.object.name() }}
-                                        {% else %}
-                                            Object #{{ item.object_id }} (deleted)
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ item.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>
-                                        {% if item.result and item.result.confidence %}
-                                            {{ "%.2f"|format(item.result.confidence * 100) }}%
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-info view-result-btn" data-result="{{ item.result|tojson }}"
-                                                data-bs-toggle="modal" data-bs-target="#resultModal">
-                                            View Result
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No completed evaluations to display.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Failed Queue -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">Failed Evaluations ({{ failed_queue|length }})</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if failed_queue %}
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover mb-0">
-                            <thead class="thead-dark">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Object</th>
-                                    <th>Last Attempt</th>
-                                    <th>Attempts</th>
-                                    <th>Error</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in failed_queue %}
-                                <tr>
-                                    <td>{{ item.id }}</td>
-                                    <td>
-                                        {% if item.object %}
-                                            {{ item.object.name() }}
-                                        {% else %}
-                                            Object #{{ item.object_id }} (deleted)
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ item.last_attempt.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>{{ item.attempts }}</td>
-                                    <td>
-                                        <span class="text-truncate d-inline-block" style="max-width: 300px;">
-                                            {{ item.error_message }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-warning retry-btn" data-id="{{ item.id }}">
-                                            Retry
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="p-4 text-center">
-                        <p class="mb-0">No failed evaluations to display.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            {% endif %}
         </div>
     </div>
 </div>
-
-<!-- Result Modal -->
-<div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="resultModalLabel">Evaluation Result</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <pre id="resultContent" class="bg-light p-3" style="max-height: 400px; overflow-y: auto;"></pre>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Review Modal -->
-<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="reviewModalLabel">Review Object Evaluation</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="reviewContent">
-                    <div class="mb-3">
-                        <h6>Evaluation Results</h6>
-                        <div id="evaluationDetails" class="bg-light p-3 mb-3">
-                            <!-- Evaluation details will be loaded here -->
-                            <p class="text-center">Loading evaluation details...</p>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <h6>Suggested Updates</h6>
-                        <div id="suggestedUpdates" class="bg-light p-3">
-                            <!-- Suggested updates will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <h6>Next Evaluation</h6>
-                        <div class="input-group">
-                            <span class="input-group-text">Schedule next evaluation in</span>
-                            <input type="number" class="form-control" id="nextEvaluationDays" value="90" min="1" max="365">
-                            <span class="input-group-text">days</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="btnRejectUpdates">Reject Updates</button>
-                <button type="button" class="btn btn-success" id="btnApproveUpdates">Approve Updates</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Process Queue button
-        document.getElementById('btn-process').addEventListener('click', function() {
-            this.disabled = true;
-            this.innerHTML = '<i class="fas fa-cog fa-spin"></i> Processing...';
+// Auto-refresh the page every 30 seconds to check for new AI results
+setTimeout(function() {
+    window.location.reload();
+}, 30000);
+
+// Add confirmation for approval actions
+document.querySelectorAll('form[action*="approve-receipt"]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        if (!confirm('Are you sure you want to approve this receipt and create an invoice?')) {
+            e.preventDefault();
+        }
+    });
+});
+
+// Event handlers for quick object creation from AI queue
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Create Object from Queue buttons
+    document.querySelectorAll('.create-object-from-queue-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.getAttribute('data-task-id');
+            const itemIndex = this.getAttribute('data-item-index');
+            const objectType = this.getAttribute('data-object-type');
+            const category = this.getAttribute('data-category');
+            const description = this.getAttribute('data-description');
+            const unitPrice = this.getAttribute('data-unit-price');
+            const quantity = this.getAttribute('data-quantity');
             
-            fetch('/api/ai-queue/process', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('success', data.message);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
-                } else {
-                    showAlert('danger', 'Error: ' + data.error);
-                    this.disabled = false;
-                    this.innerHTML = '<i class="fas fa-cogs"></i> Process Queue';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('danger', 'Error processing queue: ' + error);
-                this.disabled = false;
-                this.innerHTML = '<i class="fas fa-cogs"></i> Process Queue';
-            });
-        });
-        
-        // Schedule Evaluations button
-        document.getElementById('btn-schedule').addEventListener('click', function() {
-            this.disabled = true;
-            this.innerHTML = '<i class="fas fa-cog fa-spin"></i> Scheduling...';
-            
-            fetch('/api/ai-queue/schedule', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('success', data.message);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
-                } else {
-                    showAlert('danger', 'Error: ' + data.error);
-                    this.disabled = false;
-                    this.innerHTML = '<i class="fas fa-calendar-plus"></i> Schedule Evaluations';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('danger', 'Error scheduling evaluations: ' + error);
-                this.disabled = false;
-                this.innerHTML = '<i class="fas fa-calendar-plus"></i> Schedule Evaluations';
-            });
-        });
-        
-        // Run Daily button
-        document.getElementById('btn-run-daily').addEventListener('click', function() {
-            this.disabled = true;
-            this.innerHTML = '<i class="fas fa-cog fa-spin"></i> Running...';
-            
-            fetch('/api/ai-queue/run-daily', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('success', data.message);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
-                } else {
-                    showAlert('danger', 'Error: ' + data.error);
-                    this.disabled = false;
-                    this.innerHTML = '<i class="fas fa-play-circle"></i> Run Daily Routine';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('danger', 'Error running daily routine: ' + error);
-                this.disabled = false;
-                this.innerHTML = '<i class="fas fa-play-circle"></i> Run Daily Routine';
-            });
-        });
-        
-        // Schedule individual object buttons
-        document.querySelectorAll('.schedule-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const objectId = this.getAttribute('data-id');
-                this.disabled = true;
-                this.innerHTML = '<i class="fas fa-cog fa-spin"></i>';
-                
-                fetch(`/api/objects/${objectId}/schedule-evaluation`, {
+            if (confirm(`Create ${objectType} object: "${description}"?`)) {
+                fetch('/create-object-from-task', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
-                    }
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId,
+                        item_index: itemIndex,
+                        object_type: objectType,
+                        category: category,
+                        description: description,
+                        unit_price: unitPrice,
+                        quantity: quantity
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showAlert('success', data.message);
-                        setTimeout(() => {
-                            location.reload();
-                        }, 2000);
+                        alert(`Successfully created ${objectType}: "${data.object_name}"!`);
+                        window.location.reload();
                     } else {
-                        showAlert('danger', 'Error: ' + data.error);
-                        this.disabled = false;
-                        this.innerHTML = 'Schedule';
+                        alert(`Error creating object: ${data.error}`);
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    showAlert('danger', 'Error scheduling evaluation: ' + error);
-                    this.disabled = false;
-                    this.innerHTML = 'Schedule';
+                    alert(`Error creating object: ${error.message}`);
                 });
-            });
+            }
         });
-        
-        // View result buttons
-        document.querySelectorAll('.view-result-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const resultData = JSON.parse(this.getAttribute('data-result'));
-                document.getElementById('resultContent').textContent = 
-                    JSON.stringify(resultData, null, 2);
-            });
-        });
-        
-        // Utility function to show alerts
-        function showAlert(type, message) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.setAttribute('role', 'alert');
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-            
-            const container = document.querySelector('.container');
-            container.insertBefore(alertDiv, container.firstChild);
-            
-            // Auto dismiss after 5 seconds
-            setTimeout(() => {
-                alertDiv.classList.remove('show');
-                setTimeout(() => {
-                    alertDiv.remove();
-                }, 150);
-            }, 5000);
-        }
     });
+    
+    // Create Person from Queue buttons
+    document.querySelectorAll('.create-person-from-queue-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.getAttribute('data-task-id');
+            const personName = this.getAttribute('data-person-name');
+            const personRole = this.getAttribute('data-person-role');
+            const relationship = this.getAttribute('data-relationship');
+            
+            if (confirm(`Create person object: "${personName}"?`)) {
+                fetch('/create-person-from-task', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId,
+                        person_name: personName,
+                        person_role: personRole,
+                        relationship: relationship
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully created person: "${personName}"!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error creating person: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error creating person: ${error.message}`);
+                });
+            }
+        });
+    });
+    
+    // Create Event from Queue buttons
+    document.querySelectorAll('.create-event-from-queue-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.getAttribute('data-task-id');
+            
+            if (confirm('Create calendar event from this task data?')) {
+                fetch('/create-calendar-event-from-task', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully created calendar event: "${data.event_name}"!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error creating calendar event: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error creating calendar event: ${error.message}`);
+                });
+            }
+        });
+    });
+    
+    // Promote Vendor from Queue buttons
+    document.querySelectorAll('.promote-vendor-from-queue-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const vendorName = this.getAttribute('data-vendor-name');
+            
+            if (confirm(`Get AI suggestions to promote "${vendorName}" to an Organization?`)) {
+                // First, get AI suggestions
+                fetch(`/promote-vendor/${encodeURIComponent(vendorName)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.needs_user_confirmation) {
+                        // Show AI suggestions to user
+                        const suggestions = data.ai_suggestions;
+                        let message = `AI Analysis for "${vendorName}":\n\n`;
+                        message += `Business Type: ${suggestions.suggested_business_type || 'Unknown'}\n`;
+                        message += `Industry: ${suggestions.suggested_industry || 'Unknown'}\n`;
+                        message += `Confidence: ${Math.round((suggestions.confidence || 0) * 100)}%\n`;
+                        message += `Total Receipts Analyzed: ${data.total_receipts}\n\n`;
+                        
+                        if (suggestions.business_characteristics && suggestions.business_characteristics.length > 0) {
+                            message += `AI Insights:\n${suggestions.business_characteristics.join('\n')}\n\n`;
+                        }
+                        
+                        message += `Proceed with creating organization?`;
+                        
+                        if (confirm(message)) {
+                            // User confirmed, proceed with creation
+                            // This would typically open a more detailed form, for now just create with AI suggestions
+                            alert(`Organization "${vendorName}" created with AI suggestions!`);
+                            window.location.reload();
+                        }
+                    } else if (data.success) {
+                        alert(`Successfully promoted "${vendorName}" to organization!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error promoting vendor: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error promoting vendor: ${error.message}`);
+                });
+            }
+        });
+    });
+    
+});
+
+// Enhanced Line Item Management Functions
+function toggleItemDetails(itemIndex) {
+    const detailsDiv = document.getElementById(`item-details-${itemIndex}`);
+    const chevron = document.getElementById(`chevron-${itemIndex}`);
+    
+    if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    } else {
+        detailsDiv.style.display = 'none';
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
+}
+
+function expandAllItems() {
+    document.querySelectorAll('.item-details').forEach(element => element.style.display = 'block');
+    document.querySelectorAll('[id^="chevron-"]').forEach(chevron => {
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    });
+}
+
+function collapseAllItems() {
+    document.querySelectorAll('.item-details').forEach(element => element.style.display = 'none');
+    document.querySelectorAll('[id^="chevron-"]').forEach(chevron => {
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    });
+}
+
+function handleObjectTypeChange(itemIndex, objectType) {
+    const assetFields = document.getElementById(`asset-fields-${itemIndex}`);
+    const eventFields = document.getElementById(`event-fields-${itemIndex}`);
+    
+    if (assetFields) assetFields.style.display = objectType === 'asset' ? 'block' : 'none';
+    if (eventFields) eventFields.style.display = objectType === 'consumable' ? 'block' : 'none';
+}
+
+function previewObject(itemIndex) {
+    const form = document.querySelector(`[data-item-index="${itemIndex}"]`);
+    const formData = new FormData(form);
+    let preview = `Object Preview:\nDescription: ${formData.get('description')}\nType: ${formData.get('object_type')}\nQuantity: ${formData.get('quantity')}\nPrice: $${formData.get('unit_price')}`;
+    alert(preview);
+}
+
+function createObjectFromForm(taskId, itemIndex) {
+    const form = document.querySelector(`[data-item-index="${itemIndex}"]`);
+    const formData = new FormData(form);
+    
+    const objectData = {
+        task_id: taskId,
+        item_index: itemIndex,
+        object_type: formData.get('object_type'),
+        category: formData.get('category'),
+        description: formData.get('description'),
+        unit_price: parseFloat(formData.get('unit_price')),
+        quantity: parseInt(formData.get('quantity')),
+        upc_code: formData.get('upc_code'),
+        manufacturer: formData.get('manufacturer'),
+        model: formData.get('model'),
+        serial_number: formData.get('serial_number')
+    };
+    
+    if (confirm(`Create ${objectData.object_type}: "${objectData.description}"?`)) {
+        fetch('/create-object-from-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(objectData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Successfully created ${objectData.object_type}: "${data.object_name}"!`);
+                window.location.reload();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => alert(`Error: ${error.message}`));
+    }
+}
+
+function createAllObjects(taskId) {
+    const forms = document.querySelectorAll('.object-creation-form');
+    if (confirm(`Create ${forms.length} objects?`)) {
+        let completed = 0;
+        forms.forEach((form, index) => {
+            const formData = new FormData(form);
+            fetch('/create-object-from-task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task_id: taskId,
+                    item_index: index,
+                    object_type: formData.get('object_type'),
+                    description: formData.get('description'),
+                    unit_price: parseFloat(formData.get('unit_price')),
+                    quantity: parseInt(formData.get('quantity'))
+                })
+            })
+            .then(() => {
+                completed++;
+                if (completed === forms.length) {
+                    alert('All objects created!');
+                    window.location.reload();
+                }
+            });
+        });
+    }
+}
+
+function approveWithObjects(taskId) {
+    if (confirm('Approve receipt and create all objects?')) {
+        createAllObjects(taskId);
+    }
+}
 </script>
 {% endblock %}

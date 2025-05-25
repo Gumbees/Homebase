@@ -1,87 +1,158 @@
 {% extends 'base.html' %}
 
+{% block title %}Homebase - Your AI Organized Home{% endblock %}
+
 {% block content %}
-<div class="card bg-dark shadow-lg">
-    <div class="card-body text-center p-5">
-        <h1 class="card-title display-4 mb-4">
-            <i class="fas fa-receipt text-info me-3"></i>
-            Receipt Processing System
-        </h1>
-        <p class="card-text lead mb-4">
-            Upload receipts, automatically create invoices, and manage your assets and expenses in one place.
-        </p>
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 bg-secondary shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-upload fa-3x text-info mb-3"></i>
-                        <h5 class="card-title">Upload Receipts</h5>
-                        <p class="card-text">Upload and scan receipts to automatically create and categorize invoices</p>
-                        <a href="{{ url_for('receipt_upload') }}" class="btn btn-info mt-3">
-                            <i class="fas fa-upload me-2"></i>Upload Receipt
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 bg-secondary shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-file-invoice-dollar fa-3x text-info mb-3"></i>
-                        <h5 class="card-title">View Invoices</h5>
-                        <p class="card-text">Browse all your processed invoices and their line items</p>
-                        <a href="{{ url_for('receipts_page') }}" class="btn btn-info mt-3">
-                            <i class="fas fa-file-invoice-dollar me-2"></i>View Invoices
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 bg-secondary shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-laptop fa-3x text-info mb-3"></i>
-                        <h5 class="card-title">Asset Management</h5>
-                        <p class="card-text">Track and manage assets recorded from your receipts</p>
-                        <a href="{{ url_for('inventory') }}" class="btn btn-info mt-3">
-                            <i class="fas fa-laptop me-2"></i>View Assets
-                        </a>
-                    </div>
+<div class="hero-section text-center py-5 mb-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <h1 class="display-3 fw-bold text-primary mb-4">
+                    <i class="fas fa-home me-3"></i>Welcome to Homebase
+                </h1>
+                <h2 class="h3 text-muted mb-4">Your AI Organized Home</h2>
+                <p class="lead mb-4">
+                    Transform your home management with AI-powered organization. From receipts and inventory to bills and valuations, 
+                    Homebase keeps track of everything so you don't have to.
+                </p>
+                <div class="d-flex flex-wrap justify-content-center gap-3">
+                    <a href="{{ url_for('receipt_upload') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-upload me-2"></i>Upload Receipt
+                    </a>
+                    <a href="{{ url_for('photo_inventory') }}" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-camera me-2"></i>Photo Inventory
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card mt-5 bg-dark shadow-lg">
-    <div class="card-body p-4">
-        <h2 class="card-title text-center mb-4">How It Works</h2>
-        <div class="row">
-            <div class="col-md-3 mb-4 text-center">
-                <div class="border border-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                    <i class="fas fa-upload fa-2x text-info"></i>
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-center mb-5">
+                <i class="fas fa-magic me-2"></i>What Homebase Can Do For You
+            </h2>
+        </div>
+    </div>
+    
+    <div class="row g-4 mb-5">
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-3">
+                        <i class="fas fa-receipt fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">Smart Receipt Processing</h5>
+                    <p class="card-text">
+                        Upload receipts and let AI automatically extract vendor info, line items, and create inventory objects. 
+                        No more manual data entry.
+                    </p>
+                    <a href="{{ url_for('receipt_upload') }}" class="btn btn-outline-primary">Get Started</a>
                 </div>
-                <h5>Upload</h5>
-                <p>Upload your scanned receipts</p>
             </div>
-            <div class="col-md-3 mb-4 text-center">
-                <div class="border border-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                    <i class="fas fa-cogs fa-2x text-info"></i>
+        </div>
+        
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-success">
+                <div class="card-body text-center">
+                    <div class="text-success mb-3">
+                        <i class="fas fa-camera fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">Photo-Based Inventory</h5>
+                    <p class="card-text">
+                        Take photos of your belongings and get instant AI valuations, specifications, and condition assessments 
+                        for insurance and organization.
+                    </p>
+                    <a href="{{ url_for('photo_inventory') }}" class="btn btn-outline-success">Capture Items</a>
                 </div>
-                <h5>Process</h5>
-                <p>Receipts are processed automatically</p>
             </div>
-            <div class="col-md-3 mb-4 text-center">
-                <div class="border border-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                    <i class="fas fa-file-invoice fa-2x text-info"></i>
+        </div>
+        
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-3">
+                        <i class="fas fa-file-invoice-dollar fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">Bill Management</h5>
+                    <p class="card-text">
+                        Track due dates, manage payments, and never miss a bill again. Organize by priority and get reminders 
+                        for upcoming payments.
+                    </p>
+                    <a href="{{ url_for('bills_page') }}" class="btn btn-outline-warning">Manage Bills</a>
                 </div>
-                <h5>Categorize</h5>
-                <p>Items are categorized as assets or expenses</p>
             </div>
-            <div class="col-md-3 mb-4 text-center">
-                <div class="border border-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                    <i class="fas fa-chart-bar fa-2x text-info"></i>
+        </div>
+        
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-info">
+                <div class="card-body text-center">
+                    <div class="text-info mb-3">
+                        <i class="fas fa-boxes fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">Inventory Tracking</h5>
+                    <p class="card-text">
+                        Keep track of all your belongings with automatic categorization, expiration tracking, and 
+                        shopping list generation.
+                    </p>
+                    <a href="{{ url_for('inventory') }}" class="btn btn-outline-info">View Inventory</a>
                 </div>
-                <h5>Manage</h5>
-                <p>View and manage all your financial data</p>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-secondary">
+                <div class="card-body text-center">
+                    <div class="text-secondary mb-3">
+                        <i class="fas fa-store fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">Vendor Relationships</h5>
+                    <p class="card-text">
+                        Automatically build a database of vendors from your receipts with contact info, purchase history, 
+                        and spending analytics.
+                    </p>
+                    <a href="{{ url_for('vendors') }}" class="btn btn-outline-secondary">View Vendors</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-danger">
+                <div class="card-body text-center">
+                    <div class="text-danger mb-3">
+                        <i class="fas fa-brain fa-3x"></i>
+                    </div>
+                    <h5 class="card-title">AI-Powered Intelligence</h5>
+                    <p class="card-text">
+                        Advanced AI analyzes your data to provide insights, automate categorization, and help you make 
+                        better decisions about your home and finances.
+                    </p>
+                    <a href="{{ url_for('ai_queue') }}" class="btn btn-outline-danger">AI Queue</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="bg-primary bg-gradient text-white rounded p-4 text-center">
+                <h3 class="mb-3">
+                    <i class="fas fa-rocket me-2"></i>Ready to Get Organized?
+                </h3>
+                <p class="lead mb-4">
+                    Start by uploading a receipt or taking a photo of something you own. 
+                    Homebase will handle the rest with AI-powered organization.
+                </p>
+                <div class="d-flex flex-wrap justify-content-center gap-3">
+                    <a href="{{ url_for('receipt_upload') }}" class="btn btn-light btn-lg">
+                        <i class="fas fa-upload me-2"></i>Upload First Receipt
+                    </a>
+                    <a href="{{ url_for('photo_inventory') }}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-camera me-2"></i>Take First Photo
+                    </a>
+                </div>
             </div>
         </div>
     </div>

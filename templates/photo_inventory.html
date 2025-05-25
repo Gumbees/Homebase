@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block title %}Photo Inventory{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-camera me-2"></i>Photo Inventory</h2>
+                    <p class="text-muted">Take photos of objects for AI-powered inventory and valuation</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('inventory') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list me-2"></i>View Inventory
+                    </a>
+                    <a href="{{ url_for('inventory_valuation_report') }}" class="btn btn-info">
+                        <i class="fas fa-chart-line me-2"></i>Valuation Report
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">
+                                <i class="fas fa-camera-retro me-2"></i>
+                                Quick Photo Analysis
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" enctype="multipart/form-data" id="photoInventoryForm">
+                                <!-- Photo Upload Section -->
+                                <div class="mb-4">
+                                    <label for="object_photo" class="form-label">
+                                        <strong><i class="fas fa-image me-2"></i>Object Photo</strong>
+                                    </label>
+                                    <input type="file" 
+                                           class="form-control" 
+                                           id="object_photo" 
+                                           name="object_photo" 
+                                           accept="image/*,application/pdf"
+                                           capture="environment"
+                                           required>
+                                    <div class="form-text">
+                                        Take a clear photo showing the object from the best angle. Include any labels, model numbers, or distinguishing features.
+                                    </div>
+                                    
+                                    <!-- Photo Preview -->
+                                    <div id="photoPreview" class="mt-3" style="display: none;">
+                                        <img id="previewImage" class="img-fluid rounded border" style="max-height: 300px;" alt="Preview">
+                                    </div>
+                                </div>
+
+                                <!-- Context Information -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="description" class="form-label">
+                                            <strong>Object Description (Optional)</strong>
+                                        </label>
+                                        <textarea class="form-control" 
+                                                  id="description" 
+                                                  name="description" 
+                                                  rows="3" 
+                                                  placeholder="Briefly describe what this object is (e.g., 'Apple MacBook Pro', 'Vintage dining table', 'Power drill')"></textarea>
+                                        <div class="form-text">Help AI identify the object more accurately</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="condition_notes" class="form-label">
+                                            <strong>Condition Notes (Optional)</strong>
+                                        </label>
+                                        <textarea class="form-control" 
+                                                  id="condition_notes" 
+                                                  name="condition_notes" 
+                                                  rows="3" 
+                                                  placeholder="Note any damage, wear, or special conditions (e.g., 'Excellent condition', 'Minor scratches on back', 'Recently serviced')"></textarea>
+                                        <div class="form-text">Helps with accurate condition assessment</div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="estimated_age" class="form-label">
+                                            <strong>Estimated Age (Optional)</strong>
+                                        </label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="estimated_age" 
+                                               name="estimated_age" 
+                                               placeholder="e.g., '2 years old', 'Bought in 2020', 'Vintage 1980s'">
+                                        <div class="form-text">When was this acquired or manufactured?</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="purchase_info" class="form-label">
+                                            <strong>Purchase Information (Optional)</strong>
+                                        </label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="purchase_info" 
+                                               name="purchase_info" 
+                                               placeholder="e.g., 'Paid $500 at Best Buy', 'Gift from family', 'Estate sale find'">
+                                        <div class="form-text">Original purchase details for valuation context</div>
+                                    </div>
+                                </div>
+
+                                <!-- AI Provider Selection -->
+                                <div class="mb-4">
+                                    <label for="ai_provider" class="form-label">
+                                        <strong>AI Analysis Provider</strong>
+                                    </label>
+                                    <select class="form-select" id="ai_provider" name="ai_provider">
+                                        <option value="claude" selected>Claude (Anthropic) - Best for detailed analysis</option>
+                                        <option value="openai">OpenAI GPT - Good for general identification</option>
+                                        <option value="llm_studio">Local LLM - Privacy-focused option</option>
+                                    </select>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                        <i class="fas fa-brain me-2"></i>
+                                        Analyze Object & Estimate Value
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Quick Tips -->
+                    <div class="card mt-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Photography Tips</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-check-circle text-success me-2"></i>Best Practices:</h6>
+                                    <ul class="list-unstyled">
+                                        <li><i class="fas fa-sun text-warning me-2"></i>Use good lighting</li>
+                                        <li><i class="fas fa-eye text-info me-2"></i>Show the whole object clearly</li>
+                                        <li><i class="fas fa-tag text-primary me-2"></i>Include any labels or model numbers</li>
+                                        <li><i class="fas fa-ruler text-secondary me-2"></i>Include size reference if possible</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-target text-primary me-2"></i>What AI Analyzes:</h6>
+                                    <ul class="list-unstyled">
+                                        <li><i class="fas fa-dollar-sign text-success me-2"></i>Current market value</li>
+                                        <li><i class="fas fa-cogs text-info me-2"></i>Brand, model, specifications</li>
+                                        <li><i class="fas fa-chart-line text-warning me-2"></i>Condition assessment</li>
+                                        <li><i class="fas fa-shield-alt text-danger me-2"></i>Insurance recommendations</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Photo preview functionality
+document.getElementById('object_photo').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('previewImage').src = e.target.result;
+            document.getElementById('photoPreview').style.display = 'block';
+        }
+        reader.readAsDataURL(file);
+    } else {
+        document.getElementById('photoPreview').style.display = 'none';
+    }
+});
+
+// Form submission handling
+document.getElementById('photoInventoryForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.innerHTML;
+    
+    // Disable button and show loading
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing with AI...';
+    
+    // Re-enable button after 30 seconds (in case of issues)
+    setTimeout(function() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }, 30000);
+});
+
+// Auto-resize textareas
+document.querySelectorAll('textarea').forEach(function(textarea) {
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = this.scrollHeight + 'px';
+    });
+});
+</script>
+{% endblock %} 

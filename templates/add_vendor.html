@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}Add New Vendor{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-plus me-2"></i>Add New Vendor</h2>
+                    <p class="text-muted">Create a new vendor profile</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('vendors') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Vendors
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-store me-2"></i>Vendor Information
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">
+                                        <i class="fas fa-store me-1"></i>Vendor Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" id="name" name="name" required 
+                                           placeholder="Enter vendor name">
+                                    <div class="form-text">This is the primary name for the vendor</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="business_type" class="form-label">
+                                        <i class="fas fa-building me-1"></i>Business Type
+                                    </label>
+                                    <select class="form-select" id="business_type" name="business_type">
+                                        <option value="">Select business type</option>
+                                        <option value="Restaurant">Restaurant</option>
+                                        <option value="Retail Store">Retail Store</option>
+                                        <option value="Gas Station">Gas Station</option>
+                                        <option value="Grocery Store">Grocery Store</option>
+                                        <option value="Online Store">Online Store</option>
+                                        <option value="Service Provider">Service Provider</option>
+                                        <option value="Contractor">Contractor</option>
+                                        <option value="Utility Company">Utility Company</option>
+                                        <option value="Government">Government</option>
+                                        <option value="Healthcare">Healthcare</option>
+                                        <option value="Entertainment">Entertainment</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">
+                                        <i class="fas fa-envelope me-1"></i>Email
+                                    </label>
+                                    <input type="email" class="form-control" id="email" name="email" 
+                                           placeholder="vendor@example.com">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">
+                                        <i class="fas fa-phone me-1"></i>Phone
+                                    </label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" 
+                                           placeholder="(555) 123-4567">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="website" class="form-label">
+                                <i class="fas fa-globe me-1"></i>Website
+                            </label>
+                            <input type="url" class="form-control" id="website" name="website" 
+                                   placeholder="https://vendor-website.com">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">
+                                <i class="fas fa-map-marker-alt me-1"></i>Address
+                            </label>
+                            <textarea class="form-control" id="address" name="address" rows="2" 
+                                      placeholder="Enter full address"></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('vendors') }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Create Vendor
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-format phone number
+    const phoneInput = document.getElementById('phone');
+    phoneInput.addEventListener('input', function() {
+        let value = this.value.replace(/\D/g, '');
+        if (value.length >= 6) {
+            value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+        } else if (value.length >= 3) {
+            value = value.replace(/(\d{3})(\d{3})/, '($1) $2');
+        } else if (value.length > 0) {
+            value = value.replace(/(\d{3})/, '($1)');
+        }
+        this.value = value;
+    });
+
+    // Auto-format website URL
+    const websiteInput = document.getElementById('website');
+    websiteInput.addEventListener('blur', function() {
+        let value = this.value.trim();
+        if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+            this.value = 'https://' + value;
+        }
+    });
+});
+</script>
+{% endblock %} 

@@ -184,9 +184,11 @@
                                     </button>
                                     {% endif %}
                                     
-                                    <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
+                                    <!-- TODO: Implement object attachments functionality
+                                    {# <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
                                         <i class="fas fa-images"></i>
-                                    </a>
+                                    </a> #}
+                                    -->
                                     
                                     <button type="button" class="btn btn-sm btn-outline-danger delete-object-btn" data-object-id="{{ obj.id }}" data-object-name="{{ obj.data.name }}" title="Delete Object">
                                         <i class="fas fa-trash"></i>
@@ -271,9 +273,11 @@
                                     </button>
                                     {% endif %}
                                     
-                                    <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
+                                    <!-- TODO: Implement object attachments functionality
+                                    {# <a href="{{ url_for('object_attachments', object_id=obj.id) }}" class="btn btn-sm btn-secondary" title="Manage Photos & Attachments">
                                         <i class="fas fa-images"></i>
-                                    </a>
+                                    </a> #}
+                                    -->
                                 </div>
                             </div>
                         </div>

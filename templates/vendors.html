@@ -1,49 +1,40 @@
 {% extends 'base.html' %}
 
+{% block title %}Vendors{% endblock %}
+
 {% block content %}
-<div class="card bg-dark shadow">
-    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
-        <h2 class="mb-0">
-            <i class="fas fa-store me-2"></i>
-            Vendors
-        </h2>
-        <a href="{{ url_for('add_vendor') }}" class="btn btn-success">
-            <i class="fas fa-plus me-1"></i> Add New Vendor
-        </a>
-    </div>
-    <div class="card-body">
-        {% if pending_count and pending_count > 0 %}
-            <div class="alert alert-info mb-4">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <i class="fas fa-exclamation-circle fa-2x"></i>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-store me-2"></i>Vendors</h2>
+                    <p class="text-muted">Manage vendor information and relationships</p>
                     </div>
                     <div>
-                        <h5 class="alert-heading mb-1">Vendors Awaiting Approval</h5>
-                        <p class="mb-0">
-                            There {{ 'is' if pending_count == 1 else 'are' }} {{ pending_count }} vendor{{ 's' if pending_count != 1 else '' }} 
-                            waiting for your approval.
-                        </p>
-                    </div>
-                    <div class="ms-auto">
-                        <a href="{{ url_for('approvals_queue') }}" class="btn btn-primary">
-                            <i class="fas fa-clipboard-check me-1"></i> Review Approval Queue
+                    <a href="{{ url_for('add_vendor') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Add New Vendor
                         </a>
-                    </div>
                 </div>
             </div>
-        {% endif %}
         
         {% if vendors %}
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Vendor Directory ({{ vendors|length }})
+                    </h4>
+                </div>
+                <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-dark">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
                         <tr>
                             <th>Vendor Name</th>
-                            <th>Contact Email</th>
-                            <th>Contact Phone</th>
+                                    <th>Contact Information</th>
+                                    <th>Business Type</th>
                             <th>Receipts</th>
-                            <th>Total Spent</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -51,151 +42,139 @@
                         {% for vendor in vendors %}
                         <tr>
                             <td>
-                                <a href="{{ url_for('view_vendor', vendor_id=vendor.id) }}">
-                                    {{ vendor.name }}
-                                </a>
+                                        <strong class="text-primary">{{ vendor.name }}</strong>
+                                        {% if vendor.approved_at %}
+                                            <small class="text-muted d-block">
+                                                Added: {{ vendor.approved_at.strftime('%Y-%m-%d') }}
+                                            </small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.contact_info %}
+                                            {% if vendor.contact_info.get('phone') %}
+                                                <div><i class="fas fa-phone text-success me-1"></i>{{ vendor.contact_info.phone }}</div>
+                                            {% endif %}
+                                            {% if vendor.contact_info.get('email') %}
+                                                <div><i class="fas fa-envelope text-info me-1"></i>{{ vendor.contact_info.email }}</div>
+                                            {% endif %}
+                                            {% if vendor.contact_info.get('website') %}
+                                                <div><i class="fas fa-globe text-primary me-1"></i>
+                                                    <a href="{{ vendor.contact_info.website }}" target="_blank">{{ vendor.contact_info.website }}</a>
+                                                </div>
+                                            {% endif %}
+                                            {% if vendor.contact_info.get('address') %}
+                                                <div><i class="fas fa-map-marker-alt text-warning me-1"></i>{{ vendor.contact_info.address }}</div>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">No contact info</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.contact_info and vendor.contact_info.get('business_type') %}
+                                            <span class="badge bg-secondary">{{ vendor.contact_info.business_type }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
                             </td>
-                            <td>{{ vendor.contact_info.email if vendor.contact_info and vendor.contact_info.email else 'N/A' }}</td>
-                            <td>{{ vendor.contact_info.phone if vendor.contact_info and vendor.contact_info.phone else 'N/A' }}</td>
-                            <td>{{ vendor.invoices.count() }}</td>
-                            <td>
-                                {% set total_spent = 0 %}
-                                {% for invoice in vendor.invoices %}
-                                    {% set total_spent = total_spent + invoice.data.get('total_amount', 0) %}
-                                {% endfor %}
-                                ${{ "%.2f"|format(total_spent) }}
+                                    <td>
+                                        {% if vendor.receipt_count > 0 %}
+                                            <span class="badge bg-info">{{ vendor.receipt_count }} receipts</span>
+                                        {% else %}
+                                            <span class="text-muted">No receipts</span>
+                                        {% endif %}
                             </td>
                             <td>
                                 <div class="btn-group">
-                                    <a href="{{ url_for('view_vendor', vendor_id=vendor.id) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <a href="{{ url_for('edit_vendor', vendor_id=vendor.id) }}" class="btn btn-sm btn-warning">
+                                            <a href="{{ url_for('edit_vendor', vendor_id=vendor.id) }}" 
+                                               class="btn btn-sm btn-outline-primary" title="Edit Vendor">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                            {% if vendor.receipt_count == 0 %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-vendor-btn" 
+                                                    data-vendor-id="{{ vendor.id }}" 
+                                                    data-vendor-name="{{ vendor.name }}"
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteVendorModal"
+                                                    title="Delete Vendor">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% else %}
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                    disabled title="Cannot delete - has receipts">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
                                 </div>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                    </div>
+                </div>
             </div>
         {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-store fa-4x text-muted mb-3"></i>
                 <h4 class="text-muted">No vendors found</h4>
-                <p class="text-muted">Add your first vendor to start tracking receipts by vendor.</p>
+                <p class="text-muted">Add your first vendor to get started with vendor management.</p>
                 <a href="{{ url_for('add_vendor') }}" class="btn btn-primary mt-3">
-                    <i class="fas fa-plus me-1"></i> Add Vendor
+                    <i class="fas fa-plus me-2"></i>Add First Vendor
                 </a>
             </div>
         {% endif %}
     </div>
 </div>
+        </div>
 
-<div class="card bg-dark shadow mt-4">
-    <div class="card-header bg-dark">
-        <h3 class="mb-0">
-            <i class="fas fa-chart-pie me-2"></i>
-            Vendor Analysis
-        </h3>
-    </div>
-    <div class="card-body">
-        <div id="vendor-analysis">
-            <py-script>
-import js
-from datetime import datetime
-
-# Get the vendors data from Jinja
-vendors_data = {{ vendors_json|tojson }}
-
-if not vendors_data:
-    js.document.getElementById("vendor-analysis").innerHTML = """
-        <div class="alert alert-info">
-            No vendors available for analysis. Add vendors to see statistics.
-        </div>
-    """
-else:
-    # Process the data
-    total_vendors = len(vendors_data)
-    total_spent = sum(vendor['total_spent'] for vendor in vendors_data)
-    avg_spent_per_vendor = total_spent / total_vendors if total_vendors > 0 else 0
-    
-    # Find top vendors by spend
-    sorted_vendors = sorted(vendors_data, key=lambda v: v['total_spent'], reverse=True)
-    top_vendors = sorted_vendors[:5]  # Get top 5
-    
-    # Create HTML for the analysis
-    html = f"""
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Total Vendors</h6>
-                    <h2 class="display-5">{total_vendors}</h2>
-                </div>
+<!-- Delete Vendor Confirmation Modal -->
+<div class="modal fade" id="deleteVendorModal" tabindex="-1" aria-labelledby="deleteVendorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteVendorModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete Vendor
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form id="deleteVendorForm" method="post">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Total Spent</h6>
-                    <h2 class="display-5">${total_spent:.2f}</h2>
+                    
+                    <p>Are you sure you want to delete the vendor:</p>
+                    <p class="fw-bold text-primary" id="vendorToDeleteName"></p>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Average per Vendor</h6>
-                    <h2 class="display-5">${avg_spent_per_vendor:.2f}</h2>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Delete Vendor
+                    </button>
                 </div>
-            </div>
-        </div>
-    </div>
-    """
-    
-    if top_vendors:
-        html += """
-        <div class="mt-4">
-            <h5>Top Vendors by Spend</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-dark">
-                    <thead>
-                        <tr>
-                            <th>Vendor</th>
-                            <th class="text-end">Receipts</th>
-                            <th class="text-end">Total Spent</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        """
-        
-        # Add rows for top vendors
-        for vendor in top_vendors:
-            html += f"""
-                    <tr>
-                        <td>{vendor['name']}</td>
-                        <td class="text-end">{vendor['invoice_count']}</td>
-                        <td class="text-end">${vendor['total_spent']:.2f}</td>
-                    </tr>
-            """
-        
-        html += """
-                </tbody>
-            </table>
-        </div>
-        """
-    
-    html += """
-    <div class="mt-4 text-center">
-        <p><em>Note: This is a simplified analysis. In a production environment, this would include more detailed reporting and visualizations.</em></p>
-    </div>
-    """
-    
-    js.document.getElementById("vendor-analysis").innerHTML = html
-            </py-script>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Setup for Delete Vendor buttons
+    document.querySelectorAll('.delete-vendor-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const vendorId = this.getAttribute('data-vendor-id');
+            const vendorName = this.getAttribute('data-vendor-name');
+            
+            // Set vendor info in modal
+            document.getElementById('vendorToDeleteName').textContent = vendorName;
+            
+            // Set form action
+            document.getElementById('deleteVendorForm').action = `/delete-vendor/${vendorId}`;
+        });
+    });
+});
+</script>
 {% endblock %}

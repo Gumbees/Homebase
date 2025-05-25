@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+
+{% block title %}Photo Analysis Results{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-check-circle text-success me-2"></i>Photo Analysis Complete</h2>
+                    <p class="text-muted">AI has analyzed your object and estimated its value</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('photo_inventory') }}" class="btn btn-primary">
+                        <i class="fas fa-camera me-2"></i>Analyze Another Object
+                    </a>
+                    <a href="{{ url_for('inventory') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list me-2"></i>View All Inventory
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Object Photo -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="fas fa-image me-2"></i>Object Photo</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            {% if photo_attachment %}
+                                <img src="data:{{ photo_attachment.file_type }};base64,{{ photo_attachment.file_data|b64encode }}" 
+                                     class="img-fluid rounded shadow-sm" 
+                                     style="max-height: 400px;" 
+                                     alt="Object Photo">
+                            {% else %}
+                                <div class="bg-light p-4 rounded">
+                                    <i class="fas fa-image fa-3x text-muted"></i><br>
+                                    <small class="text-muted">No photo available</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-tools me-2"></i>Actions</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <a href="{{ url_for('add_object', object_id=object.id) }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-edit me-2"></i>Edit Details
+                                </a>
+                                {% if object.data.get('estimated_current_value') %}
+                                <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#updateValueModal">
+                                    <i class="fas fa-dollar-sign me-2"></i>Update Value
+                                </button>
+                                {% endif %}
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="window.print()">
+                                    <i class="fas fa-print me-2"></i>Print Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Results -->
+                <div class="col-md-8">
+                    <!-- Object Identification -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-tag me-2"></i>Object Identification</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <dt>Object Name:</dt>
+                                    <dd class="fw-bold text-primary">{{ object.data.get('name', 'Unknown Object') }}</dd>
+                                    
+                                    <dt>Category:</dt>
+                                    <dd>
+                                        <span class="badge bg-info">{{ object.object_type|title }}</span>
+                                        <span class="badge bg-secondary ms-1">{{ object.data.get('category', 'Uncategorized') }}</span>
+                                    </dd>
+                                    
+                                    {% if object.data.get('brand_model') %}
+                                    <dt>Brand/Model:</dt>
+                                    <dd>{{ object.data.brand_model }}</dd>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if object.data.get('serial_numbers') %}
+                                    <dt>Serial Numbers:</dt>
+                                    <dd>
+                                        {% for serial in object.data.serial_numbers %}
+                                            <code class="me-2">{{ serial }}</code>
+                                        {% endfor %}
+                                    </dd>
+                                    {% endif %}
+                                    
+                                    <dt>AI Confidence:</dt>
+                                    <dd>
+                                        {% set confidence = object.data.get('ai_confidence', 0) %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-{{ 'success' if confidence > 0.8 else 'warning' if confidence > 0.6 else 'danger' }}" 
+                                                 style="width: {{ (confidence * 100)|round }}%">
+                                                {{ (confidence * 100)|round }}%
+                                            </div>
+                                        </div>
+                                    </dd>
+                                </div>
+                            </div>
+                            
+                            {% if object.data.get('description') %}
+                            <div class="mt-3">
+                                <dt>Description:</dt>
+                                <dd class="text-muted">{{ object.data.description }}</dd>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Valuation Information -->
+                    {% if object.data.get('estimated_current_value') %}
+                    <div class="card mb-3">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-dollar-sign me-2"></i>Valuation</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 text-center">
+                                    <div class="border rounded p-3 bg-light">
+                                        <h3 class="text-success mb-0">${{ "{:,.2f}"|format(object.data.estimated_current_value) }}</h3>
+                                        <small class="text-muted">Estimated Current Value</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <dl class="row">
+                                        {% if object.data.get('condition_assessment') %}
+                                        <dt class="col-sm-4">Condition:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-{{ 'success' if object.data.condition_assessment == 'Excellent' else 'primary' if object.data.condition_assessment in ['Very Good', 'Good'] else 'warning' }}">
+                                                {{ object.data.condition_assessment }}
+                                            </span>
+                                        </dd>
+                                        {% endif %}
+                                        
+                                        {% if object.data.get('value_confidence') %}
+                                        <dt class="col-sm-4">Value Confidence:</dt>
+                                        <dd class="col-sm-8">{{ (object.data.value_confidence * 100)|round }}%</dd>
+                                        {% endif %}
+                                        
+                                        {% if object.data.get('market_trend') %}
+                                        <dt class="col-sm-4">Market Trend:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-{{ 'success' if object.data.market_trend == 'Appreciating' else 'primary' if object.data.market_trend == 'Stable' else 'warning' }}">
+                                                {{ object.data.market_trend }}
+                                            </span>
+                                        </dd>
+                                        {% endif %}
+                                        
+                                        {% if object.data.get('replacement_cost') %}
+                                        <dt class="col-sm-4">Replacement Cost:</dt>
+                                        <dd class="col-sm-8">${{ "{:,.2f}"|format(object.data.replacement_cost) }}</dd>
+                                        {% endif %}
+                                    </dl>
+                                </div>
+                            </div>
+                            
+                            {% if object.data.get('valuation_methodology') %}
+                            <div class="mt-3">
+                                <dt>Valuation Methodology:</dt>
+                                <dd class="text-muted small">{{ object.data.valuation_methodology }}</dd>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Condition & Specifications -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Condition & Specifications</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {% if object.data.get('estimated_age_years') %}
+                                    <dt>Estimated Age:</dt>
+                                    <dd>{{ object.data.estimated_age_years }} years</dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('wear_indicators') %}
+                                    <dt>Wear Indicators:</dt>
+                                    <dd>{{ object.data.wear_indicators }}</dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('materials') %}
+                                    <dt>Materials:</dt>
+                                    <dd>{{ object.data.materials }}</dd>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if object.data.get('dimensions') %}
+                                    <dt>Dimensions:</dt>
+                                    <dd>{{ object.data.dimensions }}</dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('weight_estimate') %}
+                                    <dt>Weight:</dt>
+                                    <dd>{{ object.data.weight_estimate }}</dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('useful_life_remaining') %}
+                                    <dt>Useful Life Remaining:</dt>
+                                    <dd>{{ object.data.useful_life_remaining }}</dd>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% if object.data.get('specifications') %}
+                            <div class="mt-3">
+                                <dt>Technical Specifications:</dt>
+                                <dd>
+                                    <div class="bg-light p-2 rounded small">
+                                        {% for key, value in object.data.specifications.items() %}
+                                            <strong>{{ key|title }}:</strong> {{ value }}<br>
+                                        {% endfor %}
+                                    </div>
+                                </dd>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Insurance & Recommendations -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Insurance & Recommendations</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {% if object.data.get('insurance_recommendation') %}
+                                    <dt>Insurance Recommendation:</dt>
+                                    <dd>{{ object.data.insurance_recommendation }}</dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('disposition_recommendation') %}
+                                    <dt>Disposition:</dt>
+                                    <dd>
+                                        <span class="badge bg-primary">{{ object.data.disposition_recommendation }}</span>
+                                    </dd>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if object.data.get('maintenance_priority') %}
+                                    <dt>Maintenance Priority:</dt>
+                                    <dd>
+                                        <span class="badge bg-{{ 'danger' if object.data.maintenance_priority == 'High' else 'warning' if object.data.maintenance_priority == 'Medium' else 'success' }}">
+                                            {{ object.data.maintenance_priority }}
+                                        </span>
+                                    </dd>
+                                    {% endif %}
+                                    
+                                    {% if object.data.get('replacement_difficulty') %}
+                                    <dt>Replacement Difficulty:</dt>
+                                    <dd>{{ object.data.replacement_difficulty }}</dd>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% if object.data.get('special_considerations') %}
+                            <div class="mt-3">
+                                <dt>Special Considerations:</dt>
+                                <dd class="text-muted">{{ object.data.special_considerations }}</dd>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Analysis Metadata -->
+                    <div class="card">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Analysis Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <dt>Analysis Date:</dt>
+                                    <dd>{{ object.data.get('analysis_date', object.created_at.strftime('%Y-%m-%d')) }}</dd>
+                                    
+                                    <dt>AI Provider:</dt>
+                                    <dd><span class="badge bg-primary">{{ object.data.get('ai_provider', 'Unknown')|title }}</span></dd>
+                                </div>
+                                <div class="col-md-6">
+                                    {% if object.data.get('uncertainty_factors') %}
+                                    <dt>Uncertainty Factors:</dt>
+                                    <dd class="small text-muted">{{ object.data.uncertainty_factors }}</dd>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Value Modal -->
+{% if object.data.get('estimated_current_value') %}
+<div class="modal fade" id="updateValueModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Object Value</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('update_object_value', object_id=object.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="purchase_cost" class="form-label">Purchase Cost (if known):</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="purchase_cost" name="purchase_cost" 
+                                   step="0.01" placeholder="Enter original purchase price">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="current_value_override" class="form-label">Current Value Override:</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="current_value_override" name="current_value_override" 
+                                   step="0.01" value="{{ object.data.estimated_current_value }}"
+                                   placeholder="Override AI estimated value">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="value_notes" class="form-label">Value Notes:</label>
+                        <textarea class="form-control" id="value_notes" name="value_notes" rows="3" 
+                                  placeholder="Reason for value adjustment or additional context"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Value</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 

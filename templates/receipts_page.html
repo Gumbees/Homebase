@@ -29,12 +29,10 @@
                                 <td>{{ receipt.invoice_number }}</td>
                                 <td>{{ receipt.data.date if receipt.data.date else 'N/A' }}</td>
                                 <td>
-                                    {% if receipt.vendor_id %}
-                                        <a href="{{ url_for('view_vendor', vendor_id=receipt.vendor_id) }}">
-                                            {{ receipt.vendor.name }}
-                                        </a>
+                                    {% if receipt.vendor_id and receipt.vendor %}
+                                        <span class="fw-medium">{{ receipt.vendor.name }}</span>
                                     {% else %}
-                                        {{ receipt.data.vendor_name if receipt.data.vendor_name else 'Unknown' }}
+                                        <span class="text-muted">{{ receipt.data.get('vendor', receipt.data.get('vendor_name', 'Unknown Vendor')) }}</span>
                                     {% endif %}
                                 </td>
                                 <td>${{ "%.2f"|format(receipt.data.total_amount|float) if receipt.data.total_amount else '0.00' }}</td>
@@ -42,13 +40,31 @@
                                     <span class="badge bg-info">{{ receipt.line_items|length }}</span>
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('view_receipt', receipt_id=receipt.id) }}" class="btn btn-sm btn-outline-info">
+                                    <button class="btn btn-sm btn-outline-info view-details-btn" 
+                                            data-receipt-id="{{ receipt.id }}"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#receiptDetailsModal"
+                                            title="View Details">
                                         <i class="fas fa-eye"></i>
+                                    </button>
+                                    {% if receipt.data.get('ai_processed') %}
+                                    <a href="{{ url_for('ai_queue') }}" class="btn btn-sm btn-outline-primary" title="View in AI Queue">
+                                        <i class="fas fa-brain"></i>
                                     </a>
+                                    {% endif %}
                                     <button class="btn btn-sm btn-outline-warning re-evaluate-btn" 
                                             data-receipt-id="{{ receipt.id }}"
                                             title="Re-evaluate with AI">
                                         <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger delete-receipt-btn" 
+                                            data-receipt-id="{{ receipt.id }}"
+                                            data-receipt-name="{{ receipt.invoice_number }}"
+                                            data-vendor-name="{{ receipt.data.get('vendor', receipt.data.get('vendor_name', 'Unknown Vendor')) }}"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteReceiptModal"
+                                            title="Delete Receipt">
+                                        <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -80,12 +96,63 @@
                         <div class="form-text">Upload a clear image of your receipt (JPG, PNG, GIF or PDF)</div>
                     </div>
                     
-                    <!-- Camera Capture Option for Mobile -->
-                    <div class="mb-3 d-md-none">
+                    <!-- Enhanced Camera Capture Option for All Devices -->
+                    <div class="mb-3">
                         <label class="form-label">Or capture with camera</label>
-                        <button type="button" class="btn btn-secondary w-100" id="capturePhotoBtn">
-                            <i class="fas fa-camera me-2"></i> Capture Photo
-                        </button>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="capturePhotoBtn">
+                                <i class="fas fa-camera me-2"></i> Use Camera
+                                <small class="d-block">Works on mobile phones and computers with webcams</small>
+                            </button>
+                            <button type="button" class="btn btn-outline-info d-md-none" id="capturePhotoMobileBtn">
+                                <i class="fas fa-mobile-alt me-2"></i> Use Mobile Camera
+                                <small class="d-block">Optimized for mobile devices</small>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Live Camera Preview Area -->
+                    <div id="cameraArea" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Camera Preview</label>
+                            <div class="border rounded p-2 text-center bg-dark position-relative">
+                                <video id="cameraVideo" class="img-fluid" autoplay muted playsinline style="max-height: 400px;"></video>
+                                <canvas id="captureCanvas" class="d-none"></canvas>
+                                
+                                <!-- Camera overlay for receipt guidance -->
+                                <div id="receiptGuide" class="position-absolute" style="top: 20%; left: 10%; right: 10%; bottom: 20%; border: 2px dashed #28a745; border-radius: 8px; pointer-events: none;">
+                                    <div class="position-absolute top-50 start-50 translate-middle text-white bg-dark bg-opacity-75 px-2 py-1 rounded">
+                                        <small>Position receipt within the green border</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" id="cancelCameraBtn">
+                                <i class="fas fa-times me-1"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-success" id="takePictureBtn">
+                                <i class="fas fa-camera me-1"></i> Take Picture
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Captured Photo Preview Area -->
+                    <div id="capturedPhotoArea" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Captured Photo</label>
+                            <div class="border rounded p-2 text-center">
+                                <img id="capturedPhoto" class="img-fluid" style="max-height: 300px;" alt="Captured receipt">
+                            </div>
+                        </div>
+                        <div class="mb-3 d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" id="retakePictureBtn">
+                                <i class="fas fa-redo me-1"></i> Retake
+                            </button>
+                            <button type="button" class="btn btn-primary" id="useCapturedPhotoBtn">
+                                <i class="fas fa-check me-1"></i> Use This Photo
+                            </button>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -106,13 +173,13 @@
                         <label class="form-label">AI Model for Processing</label>
                         <div class="d-flex gap-2">
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ai_model" id="model_claude" value="claude" checked>
+                                <input class="form-check-input" type="radio" name="ai_provider" id="model_claude" value="claude" checked>
                                 <label class="form-check-label" for="model_claude">
                                     <i class="fas fa-robot me-1"></i> Claude (Anthropic)
                                 </label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ai_model" id="model_openai" value="openai">
+                                <input class="form-check-input" type="radio" name="ai_provider" id="model_openai" value="openai">
                                 <label class="form-check-label" for="model_openai">
                                     <i class="fas fa-brain me-1"></i> GPT-4o (OpenAI)
                                 </label>
@@ -121,7 +188,7 @@
                         <div class="form-text">Select which AI model to use for processing. Default is Claude.</div>
                     </div>
                     
-                    <!-- Preview Area for Mobile Camera -->
+                    <!-- Legacy Mobile Camera Preview (fallback) -->
                     <div id="cameraPreviewArea" class="d-none">
                         <div class="mb-3">
                             <label class="form-label">Preview & Crop</label>
@@ -146,6 +213,92 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Receipt Confirmation Modal -->
+<div class="modal fade" id="deleteReceiptModal" tabindex="-1" aria-labelledby="deleteReceiptModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteReceiptModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete Receipt
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="deleteReceiptForm" method="post">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+                    
+                    <p>You are about to delete the following receipt:</p>
+                    <ul>
+                        <li><strong>Receipt:</strong> <span id="receiptToDeleteName"></span></li>
+                        <li><strong>Vendor:</strong> <span id="receiptToDeleteVendor"></span></li>
+                    </ul>
+                    
+                    <div id="relatedObjectsSection" class="mt-3" style="display: none;">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-link me-2"></i>Related Objects Found
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-3">This receipt has <span id="relatedObjectsCount"></span> related inventory objects.</p>
+                                <div id="relatedObjectsList"></div>
+                                
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="deleteObjectsCheckbox" name="delete_objects" value="true">
+                                    <label class="form-check-label" for="deleteObjectsCheckbox">
+                                        <strong>Also delete related inventory objects</strong>
+                                        <small class="d-block text-muted">
+                                            If unchecked, objects will remain in inventory but will no longer be linked to this receipt.
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label for="deleteReason" class="form-label">Reason for deletion (optional):</label>
+                        <textarea class="form-control" id="deleteReason" name="delete_reason" rows="2" 
+                                  placeholder="e.g., Duplicate entry, incorrect data, etc."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Delete Receipt
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt Details Modal -->
+<div class="modal fade" id="receiptDetailsModal" tabindex="-1" aria-labelledby="receiptDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="receiptDetailsModalLabel">Receipt Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="receiptDetailsContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -191,6 +344,584 @@ document.addEventListener('DOMContentLoaded', function() {
                         button.disabled = false;
                     }, 1000);
                     console.error('Error:', error);
+                });
+        });
+    });
+    
+    // Setup for View Details buttons
+    document.querySelectorAll('.view-details-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            const modalContent = document.getElementById('receiptDetailsContent');
+            
+            // Show loading spinner
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+            
+            // Fetch receipt details
+            fetch(`/api/receipt-details/${receiptId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const receipt = data.receipt;
+                        const ai = receipt.ai_analysis;
+                        
+                        let modalContent = `
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-receipt me-2"></i>Basic Information</h6>
+                                    <dl class="row">
+                                        <dt class="col-sm-4">Invoice #:</dt>
+                                        <dd class="col-sm-8">${receipt.invoice_number || 'N/A'}</dd>
+                                        <dt class="col-sm-4">Date:</dt>
+                                        <dd class="col-sm-8">${receipt.data.date || 'N/A'}</dd>
+                                        <dt class="col-sm-4">Vendor:</dt>
+                                        <dd class="col-sm-8">
+                                            ${receipt.data.vendor || receipt.data.vendor_name || 'Unknown'}
+                                            ${receipt.vendor_id ? '' : '<button class="btn btn-sm btn-outline-info ms-2 promote-vendor-btn" data-vendor-name="' + (receipt.data.vendor || receipt.data.vendor_name || '') + '"><i class="fas fa-arrow-up me-1"></i>Promote to Organization</button>'}
+                                        </dd>
+                                        <dt class="col-sm-4">Total:</dt>
+                                        <dd class="col-sm-8">$${parseFloat(receipt.data.total_amount || 0).toFixed(2)}</dd>
+                                        <dt class="col-sm-4">Status:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-${receipt.is_paid ? 'success' : 'warning'}">
+                                                ${receipt.is_paid ? 'Paid' : 'Unpaid'}
+                                            </span>
+                                        </dd>
+                                    </dl>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-robot me-2"></i>AI Processing</h6>
+                                    <dl class="row">
+                                        <dt class="col-sm-4">AI Processed:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-${receipt.data.ai_processed ? 'success' : 'secondary'}">
+                                                ${receipt.data.ai_processed ? 'Yes' : 'No'}
+                                            </span>
+                                        </dd>
+                                        <dt class="col-sm-4">Provider:</dt>
+                                        <dd class="col-sm-8">${receipt.data.ai_provider || 'N/A'}</dd>
+                                        ${ai && ai.overall_confidence ? `
+                                        <dt class="col-sm-4">Confidence:</dt>
+                                        <dd class="col-sm-8">
+                                            <div class="progress" style="height: 15px;">
+                                                <div class="progress-bar bg-${ai.overall_confidence > 0.8 ? 'success' : ai.overall_confidence > 0.5 ? 'warning' : 'danger'}" 
+                                                     style="width: ${Math.round(ai.overall_confidence * 100)}%">
+                                                    ${Math.round(ai.overall_confidence * 100)}%
+                                                </div>
+                                            </div>
+                                        </dd>
+                                        ` : ''}
+                                        ${ai && ai.image_quality ? `
+                                        <dt class="col-sm-4">Image Quality:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-${ai.image_quality === 'good' ? 'success' : 'warning'}">
+                                                ${ai.image_quality.charAt(0).toUpperCase() + ai.image_quality.slice(1)}
+                                            </span>
+                                        </dd>
+                                        ` : ''}
+                                    </dl>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // AI Description
+                        if (ai && ai.description) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <h6><i class="fas fa-comment me-2"></i>AI Description</h6>
+                                <p class="text-muted">${ai.description}</p>
+                            </div>
+                            `;
+                        }
+                        
+                        // Event Details (Dynamic)
+                        if (ai && ai.event_details && Object.keys(ai.event_details).length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Event Information Detected</h6>
+                                        <button class="btn btn-sm btn-light create-calendar-event-btn" data-receipt-id="${receipt.id}">
+                                            <i class="fas fa-plus me-1"></i>Create Calendar Event
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                            `;
+                            
+                            Object.entries(ai.event_details).forEach(([key, value]) => {
+                                if (value) {
+                                    modalContent += `
+                                        <div class="col-md-6 mb-2">
+                                            <strong>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong><br>
+                                            ${key === 'event_date' ? `<span class="text-primary fw-bold">${value}</span>` : 
+                                              key === 'venue_location' ? `<span class="text-success">${value}</span>` : 
+                                              value}
+                                        </div>
+                                    `;
+                                }
+                            });
+                            
+                            modalContent += `
+                                        </div>
+                                        <div class="mt-2">
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-robot me-1"></i>AI Suggests: Calendar Event
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // People Found (Dynamic)
+                        if (ai && ai.people_found && ai.people_found.length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="fas fa-users me-2"></i>People Detected (${ai.people_found.length})</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                            `;
+                            
+                            ai.people_found.forEach(person => {
+                                modalContent += `
+                                    <div class="col-md-6 mb-3">
+                                        <div class="border rounded p-2">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <strong class="text-primary">${person.person_name}</strong><br>
+                                                    <small>
+                                                        Role: ${person.role ? person.role.charAt(0).toUpperCase() + person.role.slice(1) : 'N/A'}<br>
+                                                        Relationship: ${person.relationship_to_purchase}<br>
+                                                        Confidence: 
+                                                        <span class="badge bg-${person.confidence > 0.8 ? 'success' : person.confidence > 0.5 ? 'warning' : 'danger'}">
+                                                            ${Math.round(person.confidence * 100)}%
+                                                        </span>
+                                                    </small>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-success create-person-btn" 
+                                                        data-receipt-id="${receipt.id}"
+                                                        data-person-name="${person.person_name}"
+                                                        data-person-role="${person.role || ''}"
+                                                        data-relationship="${person.relationship_to_purchase}">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-1">
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-robot me-1"></i>AI Suggests: Person Object
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            modalContent += `
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // Enhanced Vendor Details (Dynamic)
+                        if (ai && ai.vendor_details && Object.keys(ai.vendor_details).length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <div class="card border-secondary">
+                                    <div class="card-header bg-secondary text-white">
+                                        <h6 class="mb-0"><i class="fas fa-building me-2"></i>Enhanced Vendor Information</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                            `;
+                            
+                            Object.entries(ai.vendor_details).forEach(([key, value]) => {
+                                if (value) {
+                                    let displayValue = value;
+                                    if (key === 'business_email') {
+                                        displayValue = `<a href="mailto:${value}">${value}</a>`;
+                                    } else if (key === 'business_website') {
+                                        displayValue = `<a href="${value}" target="_blank">${value}</a>`;
+                                    } else if (key === 'business_phone') {
+                                        displayValue = `<a href="tel:${value}">${value}</a>`;
+                                    }
+                                    
+                                    modalContent += `
+                                        <div class="col-md-6 mb-2">
+                                            <strong>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong><br>
+                                            ${displayValue}
+                                        </div>
+                                    `;
+                                }
+                            });
+                            
+                            modalContent += `
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // Digital Assets (Dynamic)
+                        if (ai && ai.digital_assets && Object.keys(ai.digital_assets).length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <div class="card border-dark">
+                                    <div class="card-header bg-dark text-white">
+                                        <h6 class="mb-0"><i class="fas fa-qrcode me-2"></i>Digital Assets & References</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                            `;
+                            
+                            Object.entries(ai.digital_assets).forEach(([key, value]) => {
+                                if (value && value !== '') {
+                                    modalContent += `
+                                        <div class="col-md-6 mb-2">
+                                            <strong>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong><br>
+                                            ${Array.isArray(value) ? value.map(item => `<span class="badge bg-primary me-1">${item}</span>`).join('') : `<code>${value}</code>`}
+                                        </div>
+                                    `;
+                                }
+                            });
+                            
+                            modalContent += `
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // Line Items with AI Object Suggestions
+                        if (receipt.line_items && receipt.line_items.length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <h6><i class="fas fa-list me-2"></i>Line Items & AI Object Suggestions (${receipt.line_items.length})</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Description</th>
+                                                <th>Qty</th>
+                                                <th>Unit Price</th>
+                                                <th>Total</th>
+                                                <th>AI Object Suggestion</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                            `;
+                            
+                            receipt.line_items.forEach((item, index) => {
+                                modalContent += `
+                                    <tr>
+                                        <td>${item.description || 'Unknown Item'}</td>
+                                        <td>${item.quantity || 1}</td>
+                                        <td>$${parseFloat(item.unit_price || 0).toFixed(2)}</td>
+                                        <td>$${parseFloat(item.total_price || 0).toFixed(2)}</td>
+                                        <td>
+                                            ${item.create_object || item.object_type ? `
+                                                <span class="badge bg-${item.create_object ? 'success' : 'warning'}">
+                                                    <i class="fas fa-${item.create_object ? 'plus' : 'question'} me-1"></i>
+                                                    ${item.object_type ? item.object_type.charAt(0).toUpperCase() + item.object_type.slice(1) : 'Object'}
+                                                </span>
+                                                ${item.category ? `<br><small class="text-muted">${item.category}</small>` : ''}
+                                                ${item.confidence ? `<br><small class="badge bg-${item.confidence > 0.8 ? 'success' : item.confidence > 0.5 ? 'warning' : 'danger'}">${Math.round(item.confidence * 100)}% confidence</small>` : ''}
+                                            ` : '<span class="text-muted">No suggestion</span>'}
+                                        </td>
+                                        <td>
+                                            ${item.object_type ? `
+                                                <button class="btn btn-sm btn-success create-object-btn" 
+                                                        data-receipt-id="${receipt.id}"
+                                                        data-item-index="${index}"
+                                                        data-object-type="${item.object_type || 'asset'}"
+                                                        data-category="${item.category || ''}"
+                                                        data-description="${item.description || ''}"
+                                                        data-unit-price="${item.unit_price || 0}"
+                                                        data-quantity="${item.quantity || 1}">
+                                                    <i class="fas fa-plus me-1"></i>Create
+                                                </button>
+                                            ` : '<span class="text-muted">N/A</span>'}
+                                        </td>
+                                    </tr>
+                                `;
+                            });
+                            
+                            modalContent += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // AI Notes
+                        if (ai && ai.extraction_notes) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-robot me-2"></i>AI Analysis Notes:</h6>
+                                    <p class="mb-0">${ai.extraction_notes}</p>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        // Created Objects
+                        if (receipt.objects && receipt.objects.length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <h6><i class="fas fa-cubes me-2"></i>Created Objects</h6>
+                                <div class="row">
+                            `;
+                            
+                            receipt.objects.forEach(obj => {
+                                modalContent += `
+                                    <div class="col-md-6 mb-2">
+                                        <div class="card card-body">
+                                            <h6 class="card-title">${obj.data.name || 'Unnamed Object'}</h6>
+                                            <p class="card-text text-muted small">${obj.object_type}</p>
+                                            ${obj.data.category ? `<span class="badge bg-secondary">${obj.data.category}</span>` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            modalContent += `
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        document.getElementById('receiptDetailsContent').innerHTML = modalContent;
+                        
+                        // Add event handlers for new buttons
+                        
+                        // Promote Vendor button
+                        document.querySelectorAll('.promote-vendor-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const vendorName = this.getAttribute('data-vendor-name');
+                                if (confirm(`Promote "${vendorName}" to an Organization?`)) {
+                                    fetch(`/promote-vendor/${encodeURIComponent(vendorName)}`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        }
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(`Successfully promoted "${vendorName}" to organization!`);
+                                            // Refresh the modal
+                                            document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                        } else {
+                                            alert(`Error promoting vendor: ${data.error}`);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert(`Error promoting vendor: ${error.message}`);
+                                    });
+                                }
+                            });
+                        });
+                        
+                        // Create Object buttons
+                        document.querySelectorAll('.create-object-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const receiptId = this.getAttribute('data-receipt-id');
+                                const itemIndex = this.getAttribute('data-item-index');
+                                const objectType = this.getAttribute('data-object-type');
+                                const category = this.getAttribute('data-category');
+                                const description = this.getAttribute('data-description');
+                                const unitPrice = this.getAttribute('data-unit-price');
+                                const quantity = this.getAttribute('data-quantity');
+                                
+                                if (confirm(`Create ${objectType} object: "${description}"?`)) {
+                                    fetch('/create-object-from-receipt', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            receipt_id: receiptId,
+                                            item_index: itemIndex,
+                                            object_type: objectType,
+                                            category: category,
+                                            description: description,
+                                            unit_price: unitPrice,
+                                            quantity: quantity
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(`Successfully created ${objectType}: "${data.object_name}"!`);
+                                            // Refresh the modal
+                                            document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                        } else {
+                                            alert(`Error creating object: ${data.error}`);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert(`Error creating object: ${error.message}`);
+                                    });
+                                }
+                            });
+                        });
+                        
+                        // Create Person buttons
+                        document.querySelectorAll('.create-person-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const receiptId = this.getAttribute('data-receipt-id');
+                                const personName = this.getAttribute('data-person-name');
+                                const personRole = this.getAttribute('data-person-role');
+                                const relationship = this.getAttribute('data-relationship');
+                                
+                                if (confirm(`Create person object: "${personName}"?`)) {
+                                    fetch('/create-person-from-receipt', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            receipt_id: receiptId,
+                                            person_name: personName,
+                                            person_role: personRole,
+                                            relationship: relationship
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(`Successfully created person: "${personName}"!`);
+                                            // Refresh the modal
+                                            document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                        } else {
+                                            alert(`Error creating person: ${data.error}`);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert(`Error creating person: ${error.message}`);
+                                    });
+                                }
+                            });
+                        });
+                        
+                        // Create Calendar Event buttons
+                        document.querySelectorAll('.create-calendar-event-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const receiptId = this.getAttribute('data-receipt-id');
+                                
+                                if (confirm('Create calendar event from this receipt data?')) {
+                                    fetch('/create-calendar-event-from-receipt', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            receipt_id: receiptId
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(`Successfully created calendar event: "${data.event_name}"!`);
+                                            // Refresh the modal
+                                            document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                        } else {
+                                            alert(`Error creating calendar event: ${data.error}`);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert(`Error creating calendar event: ${error.message}`);
+                                    });
+                                }
+                            });
+                        });
+                    } else {
+                        modalContent.innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error loading receipt details: ${data.error}
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    modalContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error loading receipt details: ${error.message}
+                        </div>
+                    `;
+                });
+        });
+    });
+    
+    // Setup for Delete Receipt buttons
+    document.querySelectorAll('.delete-receipt-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            const receiptName = this.getAttribute('data-receipt-name');
+            const vendorName = this.getAttribute('data-vendor-name');
+            
+            // Set receipt info in modal
+            document.getElementById('receiptToDeleteName').textContent = receiptName;
+            document.getElementById('receiptToDeleteVendor').textContent = vendorName;
+            
+            // Set form action
+            document.getElementById('deleteReceiptForm').action = `/delete-receipt/${receiptId}`;
+            
+            // Reset form
+            document.getElementById('deleteObjectsCheckbox').checked = false;
+            document.getElementById('deleteReason').value = '';
+            document.getElementById('relatedObjectsSection').style.display = 'none';
+            
+            // Fetch receipt details to check for related objects
+            fetch(`/api/receipt-details/${receiptId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.receipt.objects && data.receipt.objects.length > 0) {
+                        const objects = data.receipt.objects;
+                        
+                        // Show related objects section
+                        document.getElementById('relatedObjectsSection').style.display = 'block';
+                        document.getElementById('relatedObjectsCount').textContent = objects.length;
+                        
+                        // List the objects
+                        const objectsList = document.getElementById('relatedObjectsList');
+                        objectsList.innerHTML = objects.map(obj => 
+                            `<div class="mb-1">
+                                <span class="badge bg-${obj.object_type === 'asset' ? 'primary' : obj.object_type === 'service' ? 'danger' : obj.object_type === 'consumable' ? 'success' : 'secondary'} me-2">
+                                    ${obj.object_type}
+                                </span>
+                                ${obj.data.name || 'Unnamed Object'}
+                                ${obj.data.category ? `<small class="text-muted">(${obj.data.category})</small>` : ''}
+                            </div>`
+                        ).join('');
+                    } else {
+                        // No related objects
+                        document.getElementById('relatedObjectsSection').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching receipt details:', error);
+                    // Don't show related objects section if we can't fetch data
+                    document.getElementById('relatedObjectsSection').style.display = 'none';
                 });
         });
     });
@@ -278,6 +1009,170 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Hide the preview area
                 cameraPreviewArea.classList.add('d-none');
             }, 'image/jpeg', 0.9);
+        });
+    }
+    
+    // Enhanced Camera Functionality with getUserMedia
+    const capturePhotoBtnNew = document.getElementById('capturePhotoBtn');
+    const capturePhotoMobileBtn = document.getElementById('capturePhotoMobileBtn');
+    const cameraArea = document.getElementById('cameraArea');
+    const capturedPhotoArea = document.getElementById('capturedPhotoArea');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const capturedPhoto = document.getElementById('capturedPhoto');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const takePictureBtn = document.getElementById('takePictureBtn');
+    const retakePictureBtn = document.getElementById('retakePictureBtn');
+    const useCapturedPhotoBtn = document.getElementById('useCapturedPhotoBtn');
+    
+    let currentStream = null;
+    let capturedBlob = null;
+    
+    // Modern camera functionality
+    async function startCamera(useRearCamera = false) {
+        try {
+            // Stop any existing stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Camera constraints
+            const constraints = {
+                video: {
+                    width: { ideal: 1920, max: 1920 },
+                    height: { ideal: 1080, max: 1080 },
+                    facingMode: useRearCamera ? 'environment' : 'user'
+                }
+            };
+            
+            // Get camera stream
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            cameraVideo.srcObject = currentStream;
+            
+            // Show camera area
+            cameraArea.classList.remove('d-none');
+            capturedPhotoArea.classList.add('d-none');
+            
+            // Enable take picture button when video is ready
+            cameraVideo.addEventListener('loadedmetadata', () => {
+                takePictureBtn.disabled = false;
+            });
+            
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+            alert('Could not access camera. Please check permissions or try the file upload option.');
+        }
+    }
+    
+    function stopCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        cameraArea.classList.add('d-none');
+        capturedPhotoArea.classList.add('d-none');
+    }
+    
+    function takePicture() {
+        if (!cameraVideo.videoWidth || !cameraVideo.videoHeight) {
+            alert('Camera not ready. Please wait a moment and try again.');
+            return;
+        }
+        
+        // Set canvas size to match video
+        captureCanvas.width = cameraVideo.videoWidth;
+        captureCanvas.height = cameraVideo.videoHeight;
+        
+        // Draw current video frame to canvas
+        const ctx = captureCanvas.getContext('2d');
+        ctx.drawImage(cameraVideo, 0, 0);
+        
+        // Convert to blob and show preview
+        captureCanvas.toBlob((blob) => {
+            capturedBlob = blob;
+            const url = URL.createObjectURL(blob);
+            capturedPhoto.src = url;
+            
+            // Hide camera, show captured photo
+            cameraArea.classList.add('d-none');
+            capturedPhotoArea.classList.remove('d-none');
+            
+            // Stop camera
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+        }, 'image/jpeg', 0.9);
+    }
+    
+    function useCapturedPhoto() {
+        if (!capturedBlob) {
+            alert('No photo captured');
+            return;
+        }
+        
+        // Create file from blob and set to input
+        const file = new File([capturedBlob], "camera-receipt.jpg", { type: "image/jpeg" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+        
+        // Hide photo area
+        capturedPhotoArea.classList.add('d-none');
+        
+        // Show success message
+        alert('Photo captured and ready for upload!');
+    }
+    
+    // Event listeners for modern camera
+    if (capturePhotoBtnNew) {
+        capturePhotoBtnNew.addEventListener('click', () => startCamera(true)); // Use rear camera by default
+    }
+    
+    if (capturePhotoMobileBtn) {
+        capturePhotoMobileBtn.addEventListener('click', () => {
+            // Fallback to mobile file input with camera
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.accept = 'image/*';
+            tempInput.capture = 'environment';
+            
+            tempInput.addEventListener('change', (event) => {
+                if (event.target.files && event.target.files[0]) {
+                    fileInput.files = event.target.files;
+                    alert('Photo selected and ready for upload!');
+                }
+            });
+            
+            tempInput.click();
+        });
+    }
+    
+    if (cancelCameraBtn) {
+        cancelCameraBtn.addEventListener('click', stopCamera);
+    }
+    
+    if (takePictureBtn) {
+        takePictureBtn.addEventListener('click', takePicture);
+    }
+    
+    if (retakePictureBtn) {
+        retakePictureBtn.addEventListener('click', () => {
+            capturedPhotoArea.classList.add('d-none');
+            startCamera(true); // Restart camera
+        });
+    }
+    
+    if (useCapturedPhotoBtn) {
+        useCapturedPhotoBtn.addEventListener('click', useCapturedPhoto);
+    }
+    
+    // Clean up camera when modal is closed
+    const uploadModal = document.getElementById('uploadReceiptModal');
+    if (uploadModal) {
+        uploadModal.addEventListener('hidden.bs.modal', () => {
+            stopCamera();
+            capturedPhotoArea.classList.add('d-none');
+            cameraPreviewArea.classList.add('d-none');
         });
     }
 });

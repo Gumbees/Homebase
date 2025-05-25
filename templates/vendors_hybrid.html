@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+
+{% block title %}Vendors - Homebase{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-store me-2"></i>Vendors</h2>
+                    <p class="text-muted">Smart vendor management - starts simple, grows with your needs</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#helpModal">
+                        <i class="fas fa-question-circle me-2"></i>How It Works
+                    </button>
+                </div>
+            </div>
+
+            <!-- Vendor Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-tags me-2"></i>{{ vendors|length }}</h5>
+                            <p class="mb-0">Total Vendors</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-building me-2"></i>{{ vendors|selectattr('is_organization')|list|length }}</h5>
+                            <p class="mb-0">Organizations</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-receipt me-2"></i>{{ vendors|sum(attribute='receipt_count') }}</h5>
+                            <p class="mb-0">Total Receipts</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-dark">
+                        <div class="card-body">
+                            <h5><i class="fas fa-database me-2"></i>{{ vendors|rejectattr('is_organization')|rejectattr('is_legacy_vendor')|list|length }}</h5>
+                            <p class="mb-0">Metadata Only</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendors Table -->
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-list me-2"></i>All Vendors
+                    </h4>
+                </div>
+                <div class="card-body p-0">
+                    {% if vendors %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Vendor Name</th>
+                                    <th>Type</th>
+                                    <th>Receipts</th>
+                                    <th>Contact Info</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vendor in vendors %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ vendor.name }}</strong>
+                                        {% if vendor.type == 'organization' %}
+                                            {% if vendor.is_linked_name %}
+                                                <span class="badge bg-success ms-2">Linked to Org</span>
+                                                <br><small class="text-muted">
+                                                    <i class="fas fa-link me-1"></i>Part of {{ vendor.organization_primary_name }}
+                                                </small>
+                                            {% else %}
+                                                <span class="badge bg-success ms-2">Organization</span>
+                                            {% endif %}
+                                        {% elif vendor.type == 'legacy' %}
+                                            <span class="badge bg-info ms-2">Legacy</span>
+                                        {% else %}
+                                            <span class="badge bg-warning ms-2">Metadata</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.is_organization %}
+                                            {% if vendor.is_linked_name %}
+                                                <i class="fas fa-link text-success me-1"></i>
+                                                Linked Vendor Name
+                                                <br><small class="text-muted">Belongs to {{ vendor.organization_primary_name }}</small>
+                                            {% else %}
+                                                <i class="fas fa-building text-success me-1"></i>
+                                                Primary Organization
+                                                <br><small class="text-muted">Contact management available</small>
+                                                {% if vendor.organization.metadata and vendor.organization.metadata.get('linked_vendor_names') %}
+                                                    <br><small class="text-info">
+                                                        <i class="fas fa-tags me-1"></i>
+                                                        {{ vendor.organization.metadata.linked_vendor_names|length }} linked name(s)
+                                                    </small>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% elif vendor.is_legacy_vendor %}
+                                            <i class="fas fa-tag text-info me-1"></i>
+                                            Legacy Vendor
+                                            <br><small class="text-muted">Old vendor system</small>
+                                        {% else %}
+                                            <i class="fas fa-database text-warning me-1"></i>
+                                            Metadata Only
+                                            <br><small class="text-muted">From receipt data</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ vendor.receipt_count }}</span>
+                                        {% if vendor.receipt_count > 0 %}
+                                            <br><small class="text-muted">receipts</small>
+                                        {% endif %}
+                                        
+                                        {% if vendor.is_organization and not vendor.is_linked_name and vendor.organization.metadata and vendor.organization.metadata.get('linked_vendor_names') %}
+                                            {% set total_linked_receipts = 0 %}
+                                            {% for linked_name in vendor.organization.metadata.linked_vendor_names %}
+                                                {% set linked_count = vendors|selectattr('name', 'equalto', linked_name)|map(attribute='receipt_count')|sum %}
+                                                {% set total_linked_receipts = total_linked_receipts + linked_count %}
+                                            {% endfor %}
+                                            {% if total_linked_receipts > 0 %}
+                                                <br><small class="text-success">
+                                                    <i class="fas fa-plus me-1"></i>{{ total_linked_receipts }} from linked names
+                                                </small>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.is_organization and vendor.organization %}
+                                            {% set contact = vendor.organization.contact_info or {} %}
+                                            {% if contact.email %}
+                                                <i class="fas fa-envelope text-muted me-1"></i>{{ contact.email }}<br>
+                                            {% endif %}
+                                            {% if contact.phone %}
+                                                <i class="fas fa-phone text-muted me-1"></i>{{ contact.phone }}<br>
+                                            {% endif %}
+                                            {% if contact.website %}
+                                                <i class="fas fa-globe text-muted me-1"></i>
+                                                <a href="{{ contact.website }}" target="_blank">{{ contact.website }}</a>
+                                            {% endif %}
+                                            {% if not contact.email and not contact.phone and not contact.website %}
+                                                <small class="text-muted">No contact info</small>
+                                            {% endif %}
+                                        {% elif vendor.is_legacy_vendor and vendor.legacy_vendor %}
+                                            {% if vendor.legacy_vendor.contact_email %}
+                                                <i class="fas fa-envelope text-muted me-1"></i>{{ vendor.legacy_vendor.contact_email }}<br>
+                                            {% endif %}
+                                            {% if vendor.legacy_vendor.contact_phone %}
+                                                <i class="fas fa-phone text-muted me-1"></i>{{ vendor.legacy_vendor.contact_phone }}<br>
+                                            {% endif %}
+                                            {% if vendor.legacy_vendor.website %}
+                                                <i class="fas fa-globe text-muted me-1"></i>
+                                                <a href="{{ vendor.legacy_vendor.website }}" target="_blank">{{ vendor.legacy_vendor.website }}</a>
+                                            {% endif %}
+                                        {% else %}
+                                            <small class="text-muted">
+                                                <i class="fas fa-arrow-up me-1"></i>
+                                                Promote to add contacts
+                                            </small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if vendor.is_organization and not vendor.is_linked_name %}
+                                            <a href="{{ url_for('edit_organization', org_id=vendor.organization.id) }}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit me-1"></i>Edit
+                                            </a>
+                                        {% elif vendor.is_linked_name %}
+                                            <a href="{{ url_for('edit_organization', org_id=vendor.organization.id) }}" 
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-building me-1"></i>Edit Org
+                                            </a>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-success" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#promoteModal"
+                                                    data-vendor-name="{{ vendor.name }}">
+                                                <i class="fas fa-arrow-up me-1"></i>Promote
+                                            </button>
+                                        {% endif %}
+                                        
+                                        {% if vendor.receipt_count > 0 %}
+                                            <a href="{{ url_for('receipts_page') }}?vendor={{ vendor.name|urlencode }}" 
+                                               class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-receipt me-1"></i>Receipts
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-store fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No vendors found</h5>
+                        <p class="text-muted">Vendors will appear automatically when you add receipts</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Promote Vendor Modal -->
+<div class="modal fade" id="promoteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-arrow-up me-2"></i>Promote Vendor to Organization
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="promoteForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Promoting "<span id="promotingVendorName"></span>"</strong><br>
+                        This will convert the vendor from simple metadata to a full organization with contact management, notes, and more features.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="contact_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="contact_email" name="contact_email" placeholder="contact@vendor.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="contact_phone" class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="contact_phone" name="contact_phone" placeholder="(555) 123-4567">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="website" class="form-label">Website</label>
+                        <input type="url" class="form-control" id="website" name="website" placeholder="https://vendor.com">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="business_type" class="form-label">Business Type</label>
+                        <select class="form-select" id="business_type" name="business_type">
+                            <option value="">Select type...</option>
+                            <option value="retail">Retail Store</option>
+                            <option value="restaurant">Restaurant</option>
+                            <option value="grocery">Grocery Store</option>
+                            <option value="gas_station">Gas Station</option>
+                            <option value="online">Online Store</option>
+                            <option value="service">Service Provider</option>
+                            <option value="utility">Utility Company</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Enhanced: Similar Vendor Names Section -->
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-link me-1"></i>Link Similar Vendor Names
+                        </label>
+                        <div class="border rounded p-3 bg-light" id="similarVendorsSection">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    Link other vendor names that belong to the same organization
+                                </small>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="findSimilarBtn">
+                                    <i class="fas fa-search me-1"></i>Find Similar
+                                </button>
+                            </div>
+                            
+                            <div id="similarVendorsList" style="display: none;">
+                                <div class="mb-2">
+                                    <strong>Similar vendor names found:</strong>
+                                    <small class="text-muted">(check to link to this organization)</small>
+                                </div>
+                                <div id="similarVendorsCheckboxes"></div>
+                            </div>
+                            
+                            <div id="noSimilarVendors" style="display: none;">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    No similar vendor names found. You can add them later in organization settings.
+                                </small>
+                            </div>
+                            
+                            <div id="loadingSimilar" style="display: none;">
+                                <small class="text-muted">
+                                    <i class="fas fa-spinner fa-spin me-1"></i>
+                                    Looking for similar vendor names...
+                                </small>
+                            </div>
+                        </div>
+                        <div class="form-text">
+                            Examples: "Amazon" and "Amazon.com", or "McDonald's" and "McDonald's #1234"
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any additional notes about this vendor..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-arrow-up me-2"></i>Promote to Organization
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Help Modal -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-question-circle me-2"></i>How Hybrid Vendors Work
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-database text-warning me-2"></i>Metadata Vendors</h6>
+                        <ul>
+                            <li>Automatically created from receipt data</li>
+                            <li>Just vendor names, no contact info</li>
+                            <li>Perfect for simple tracking</li>
+                            <li>Zero maintenance required</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-building text-success me-2"></i>Organizations</h6>
+                        <ul>
+                            <li>Full contact management</li>
+                            <li>Business type, notes, address</li>
+                            <li>Rich vendor relationships</li>
+                            <li>Can link multiple vendor names</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6><i class="fas fa-link text-primary me-2"></i>Vendor Name Linking</h6>
+                <p>Organizations can link multiple vendor names that belong to the same business:</p>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Examples:</strong>
+                        <ul>
+                            <li><strong>Amazon Inc.</strong> links to:
+                                <br><small class="text-muted">• Amazon • Amazon.com • AWS</small>
+                            </li>
+                            <li><strong>McDonald's Corp.</strong> links to:
+                                <br><small class="text-muted">• McDonald's • McD • McDonald's #1234</small>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Benefits:</strong>
+                        <ul>
+                            <li>Consolidated reporting</li>
+                            <li>Better analytics</li>
+                            <li>Reflects real business relationships</li>
+                            <li>Automatic receipt consolidation</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6><i class="fas fa-arrow-up text-primary me-2"></i>When to Promote?</h6>
+                <p>Promote a vendor to an organization when you need to:</p>
+                <ul>
+                    <li>Store contact information (email, phone, website)</li>
+                    <li>Link multiple vendor names under one organization</li>
+                    <li>Add business notes or categorization</li>
+                    <li>Get consolidated reporting across all names</li>
+                    <li>Manage vendor relationships more formally</li>
+                </ul>
+                
+                <div class="alert alert-success">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>Smart Promotion:</strong> When you promote a vendor, the system automatically suggests similar vendor names to link. You can also manage linked names later in organization settings.
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-magic me-2"></i>
+                    <strong>Example Workflow:</strong> Promote "Amazon" → Link "Amazon.com" and "AWS" → All receipts from these names show up under "Amazon Inc." for unified reporting.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentVendorName = '';
+
+// Handle promote modal
+document.getElementById('promoteModal').addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const vendorName = button.getAttribute('data-vendor-name');
+    currentVendorName = vendorName;
+    
+    // Update modal content
+    document.getElementById('promotingVendorName').textContent = vendorName;
+    
+    // Update form action
+    const form = document.getElementById('promoteForm');
+    form.action = `/promote-vendor/${encodeURIComponent(vendorName)}`;
+    
+    // Reset similar vendors section
+    resetSimilarVendorsSection();
+});
+
+// Enhanced: Find Similar Vendors functionality
+document.getElementById('findSimilarBtn').addEventListener('click', function() {
+    if (!currentVendorName) return;
+    
+    // Show loading state
+    document.getElementById('loadingSimilar').style.display = 'block';
+    document.getElementById('similarVendorsList').style.display = 'none';
+    document.getElementById('noSimilarVendors').style.display = 'none';
+    
+    // Fetch similar vendors from API
+    fetch(`/api/get-similar-vendors/${encodeURIComponent(currentVendorName)}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('loadingSimilar').style.display = 'none';
+            
+            if (data.success && data.similar_vendors && data.similar_vendors.length > 0) {
+                displaySimilarVendors(data.similar_vendors);
+            } else {
+                document.getElementById('noSimilarVendors').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching similar vendors:', error);
+            document.getElementById('loadingSimilar').style.display = 'none';
+            document.getElementById('noSimilarVendors').style.display = 'block';
+        });
+});
+
+function displaySimilarVendors(similarVendors) {
+    const checkboxesContainer = document.getElementById('similarVendorsCheckboxes');
+    checkboxesContainer.innerHTML = '';
+    
+    similarVendors.forEach(vendor => {
+        const checkboxDiv = document.createElement('div');
+        checkboxDiv.className = 'form-check mb-2';
+        
+        const checkbox = document.createElement('input');
+        checkbox.className = 'form-check-input';
+        checkbox.type = 'checkbox';
+        checkbox.name = 'link_vendor_names';
+        checkbox.value = vendor.name;
+        checkbox.id = `vendor_${vendor.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        const label = document.createElement('label');
+        label.className = 'form-check-label d-flex justify-content-between align-items-center w-100';
+        label.htmlFor = checkbox.id;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = vendor.name;
+        
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'badge bg-primary';
+        badgeSpan.textContent = `${vendor.receipt_count} receipts`;
+        
+        label.appendChild(nameSpan);
+        label.appendChild(badgeSpan);
+        
+        checkboxDiv.appendChild(checkbox);
+        checkboxDiv.appendChild(label);
+        
+        checkboxesContainer.appendChild(checkboxDiv);
+    });
+    
+    document.getElementById('similarVendorsList').style.display = 'block';
+}
+
+function resetSimilarVendorsSection() {
+    document.getElementById('loadingSimilar').style.display = 'none';
+    document.getElementById('similarVendorsList').style.display = 'none';
+    document.getElementById('noSimilarVendors').style.display = 'none';
+    document.getElementById('similarVendorsCheckboxes').innerHTML = '';
+}
+
+// Auto-format phone numbers
+document.getElementById('contact_phone').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length >= 6) {
+        value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+    } else if (value.length >= 3) {
+        value = value.replace(/(\d{3})(\d{0,3})/, '($1) $2');
+    }
+    e.target.value = value;
+});
+
+// Auto-add https:// to website if needed
+document.getElementById('website').addEventListener('blur', function(e) {
+    let value = e.target.value.trim();
+    if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+        e.target.value = 'https://' + value;
+    }
+});
+
+// Enhanced form submission feedback
+document.getElementById('promoteForm').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    // Get selected vendor names count
+    const selectedVendors = this.querySelectorAll('input[name="link_vendor_names"]:checked');
+    
+    // Update button text
+    submitBtn.disabled = true;
+    if (selectedVendors.length > 0) {
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Promoting with ${selectedVendors.length} linked names...`;
+    } else {
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Promoting vendor...';
+    }
+    
+    // Re-enable button after timeout (in case of errors)
+    setTimeout(function() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }, 10000);
+});
+</script>
+{% endblock %} 

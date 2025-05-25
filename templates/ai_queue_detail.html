@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Queue - Task Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-eye me-2"></i>Task Details</h2>
+                    <p class="text-muted">Detailed view of AI processing task</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('ai_queue') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to AI Queue
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        Task #{{ task.id }} - {{ task.task_type|title|replace('_', ' ') }}
+                        <span class="badge bg-{% if task.status == 'pending_review' %}warning{% elif task.status == 'completed' %}success{% elif task.status == 'failed' %}danger{% else %}secondary{% endif %} ms-2">
+                            {{ task.status|title|replace('_', ' ') }}
+                        </span>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <!-- Task Information -->
+                            <h5>Task Information</h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th style="width: 150px;">Task Type:</th>
+                                    <td>{{ task.task_type|title|replace('_', ' ') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status:</th>
+                                    <td>{{ task.status|title|replace('_', ' ') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Created:</th>
+                                    <td>{{ task.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Priority:</th>
+                                    <td>{{ task.priority }}</td>
+                                </tr>
+                                {% if task.completed_at %}
+                                <tr>
+                                    <th>Completed:</th>
+                                    <td>{{ task.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+
+                            <!-- Receipt Processing Details -->
+                            {% if task.task_type == 'receipt_processing' %}
+                            <h5 class="mt-4">Receipt Processing Details</h5>
+                            
+                            {% if task.data.original_filename %}
+                            <p><strong>Original File:</strong> {{ task.data.original_filename }}</p>
+                            {% endif %}
+                            
+                            {% if task.data.ai_provider %}
+                            <p><strong>AI Provider:</strong> {{ task.data.ai_provider|title }}</p>
+                            {% endif %}
+                            
+                            {% if task.extracted_receipt_data %}
+                            <h6>Extracted Data:</h6>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th>Vendor:</th>
+                                    <td>{{ task.extracted_receipt_data.vendor_name or 'Not detected' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Date:</th>
+                                    <td>{{ task.extracted_receipt_data.date or 'Not detected' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Amount:</th>
+                                    <td>${{ "%.2f"|format(task.extracted_receipt_data.total_amount or 0) }}</td>
+                                </tr>
+                                {% if task.extracted_receipt_data.description %}
+                                <tr>
+                                    <th>Description:</th>
+                                    <td>{{ task.extracted_receipt_data.description }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            {% endif %}
+                            
+                            {% if task.data.ai_error %}
+                            <div class="alert alert-warning">
+                                <h6>AI Processing Error:</h6>
+                                <p>{{ task.data.ai_error }}</p>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+
+                            <!-- Raw Data -->
+                            <h5 class="mt-4">Raw Task Data</h5>
+                            <pre class="bg-light p-3" style="max-height: 300px; overflow-y: auto;">{{ task.data | tojson(indent=2) }}</pre>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <!-- Receipt Preview -->
+                            {% if task.task_type == 'receipt_processing' and task.data.attachment and task.data.attachment.file_data %}
+                            <h5>Receipt Image</h5>
+                            <img src="data:{{ task.data.attachment.file_type }};base64,{{ task.data.attachment.file_data }}" 
+                                 class="img-fluid border" 
+                                 alt="Receipt">
+                            {% endif %}
+
+                            <!-- Actions -->
+                            {% if task.status in ['pending_review', 'ai_analysis_failed'] %}
+                            <div class="mt-4">
+                                <h5>Actions</h5>
+                                {% if task.task_type == 'receipt_processing' %}
+                                    {% if task.data.ai_analysis %}
+                                    <form method="post" action="{{ url_for('approve_receipt', task_id=task.id) }}" class="mb-2">
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="fas fa-check me-2"></i>Approve & Process
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                        <i class="fas fa-times me-2"></i>Reject
+                                    </button>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reject Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('reject_receipt', task_id=task.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Reason for rejection:</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" placeholder="Why are you rejecting this task?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

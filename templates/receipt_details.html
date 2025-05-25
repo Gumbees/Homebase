@@ -1,780 +1,129 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="card bg-dark shadow mb-4">
+<div class="card bg-dark shadow">
     <div class="card-header bg-dark d-flex justify-content-between align-items-center">
         <h2 class="mb-0">
             <i class="fas fa-receipt me-2"></i>
-            Receipt Details
+            Receipt Details: {{ receipt.invoice_number }}
         </h2>
-        <div>
-            <button id="reEvaluateReceiptBtn" class="btn btn-outline-primary btn-sm me-2" data-invoice-id="{{ invoice.id }}">
-                <i class="fas fa-sync-alt me-1"></i> Re-evaluate
-            </button>
-            <button type="button" class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#deleteReceiptModal">
-                <i class="fas fa-trash me-1"></i> Delete
-            </button>
-            <a href="{{ url_for('receipts_page') }}" class="btn btn-outline-secondary btn-sm">
+        <div class="btn-group">
+            <a href="{{ url_for('receipts_page') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-1"></i> Back to Receipts
+            </a>
+            <a href="{{ url_for('inventory') }}" class="btn btn-primary">
+                <i class="fas fa-boxes me-1"></i> View Inventory
             </a>
         </div>
     </div>
     <div class="card-body">
-        <div class="row">
+        <!-- Receipt Basic Info -->
+        <div class="row mb-4">
             <div class="col-md-6">
-                <h3>Invoice #{{ invoice.invoice_number }}</h3>
-                <p>
-                    <strong>Vendor:</strong> 
-                    {% if invoice.vendor %}
-                        <a href="{{ url_for('view_vendor', vendor_id=invoice.vendor.id) }}">{{ invoice.vendor.name }}</a>
-                        {% if invoice.vendor.contact_info and invoice.vendor.contact_info.get('auto_created') %}
-                            <span class="badge bg-info ms-2" title="This vendor was automatically created from receipt analysis">
-                                <i class="fas fa-magic me-1"></i> Auto-created
-                            </span>
-                        {% endif %}
-                    {% else %}
-                        {{ invoice.data.vendor }}
-                        <div class="btn-group ms-2">
-                            <a href="#" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#linkVendorModal">
-                                <i class="fas fa-link"></i> Link to Vendor
-                            </a>
-                            {% if attachments %}
-                                <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#linkVendorModal" id="quickAutoDetectBtn">
-                                    <i class="fas fa-magic"></i> Auto-detect
-                                </a>
+                <h5>Receipt Information</h5>
+                <table class="table table-dark table-sm">
+                    <tr>
+                        <td><strong>Invoice Number:</strong></td>
+                        <td>{{ receipt.invoice_number }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vendor:</strong></td>
+                        <td>{{ receipt.vendor.name if receipt.vendor else receipt.data.get('vendor', 'Unknown') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Date:</strong></td>
+                        <td>{{ receipt.data.get('date', 'Unknown') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Amount:</strong></td>
+                        <td>${{ "%.2f"|format(receipt.data.get('total_amount', 0)) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Status:</strong></td>
+                        <td>
+                            {% if receipt.is_paid %}
+                                <span class="badge bg-success">Paid</span>
+                            {% else %}
+                                <span class="badge bg-warning">Unpaid</span>
                             {% endif %}
-                        </div>
-                    {% endif %}
-                    <br>
-                    <strong>Date:</strong> {{ invoice.data.date }}<br>
-                    <strong>Total Amount:</strong> ${{ "%.2f"|format(invoice.data.total_amount|float) }}<br>
-                    <strong>Created:</strong> {{ invoice.created_at.strftime('%Y-%m-%d %H:%M') }}<br>
-                    <strong>Status:</strong> 
-                    {% if invoice.is_paid %}
-                        <span class="badge bg-success">Paid</span>
-                    {% else %}
-                        <span class="badge bg-warning">Unpaid</span>
-                    {% endif %}
-                    <br>
-                    <strong>Type:</strong> 
-                    {% if invoice.data.is_asset %}
-                        <span class="badge bg-info">Asset</span>
-                    {% else %}
-                        <span class="badge bg-secondary">Expense</span>
-                    {% endif %}
-                </p>
-                
-                {% if invoice.data.description %}
-                    <h4>Description</h4>
-                    <p>{{ invoice.data.description }}</p>
-                {% endif %}
+                        </td>
+                    </tr>
+                </table>
             </div>
-            
             <div class="col-md-6">
-                {% if attachments %}
-                    <h4>Receipt Image</h4>
-                    <div class="mb-3">
-                        {% for attachment in attachments %}
-                            <div class="card bg-dark mb-2">
-                                <div class="card-body text-center">
-                                    <a href="{{ url_for('view_attachment', attachment_id=attachment.id) }}" target="_blank">
-                                        {% if attachment.file_type and attachment.file_type.startswith('image/') %}
-                                            <img src="{{ url_for('view_attachment', attachment_id=attachment.id) }}" 
-                                                 class="img-fluid img-thumbnail" 
-                                                 style="max-height: 300px; max-width: 100%;"
-                                                 alt="Receipt Image">
-                                        {% else %}
-                                            <i class="fas fa-file-pdf fa-4x mb-2"></i><br>
-                                            <span>{{ attachment.filename }}</span>
-                                        {% endif %}
-                                    </a>
-                                </div>
-                                <div class="card-footer text-center">
-                                    <small class="text-muted">
-                                        Uploaded: {{ attachment.upload_date.strftime('%Y-%m-%d %H:%M') }}
-                                    </small><br>
-                                    <a href="{{ url_for('view_attachment', attachment_id=attachment.id) }}" 
-                                       class="btn btn-sm btn-outline-info mt-2" 
-                                       target="_blank">
-                                        <i class="fas fa-external-link-alt me-1"></i> 
-                                        Open Full Size
-                                    </a>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        No receipt images attached
-                    </div>
-                {% endif %}
+                <h5>Summary</h5>
+                <table class="table table-dark table-sm">
+                    <tr>
+                        <td><strong>Line Items:</strong></td>
+                        <td>{{ line_items|length }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Objects Created:</strong></td>
+                        <td>{{ objects|length }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Attachments:</strong></td>
+                        <td>{{ attachments|length }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Created:</strong></td>
+                        <td>{{ receipt.created_at.strftime('%Y-%m-%d %H:%M') if receipt.created_at else 'Unknown' }}</td>
+                    </tr>
+                </table>
             </div>
         </div>
-        
-        <h4 class="mt-4">Line Items</h4>
-        
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <button id="categorizeExpensesBtn" class="btn btn-primary" data-invoice-id="{{ invoice.id }}">
-                    <i class="fas fa-tags me-1"></i> Auto-Categorize Line Items
-                </button>
-                <div id="categorizationSpinner" class="spinner-border spinner-border-sm text-primary d-none" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-            {% if line_items|length > 0 and line_items[0].data.get('category') %}
-            <div class="text-end">
-                <span class="badge bg-success">Items Categorized</span>
-            </div>
-            {% endif %}
-        </div>
-        <div id="categorizationResult" class="alert d-none mb-3"></div>
-        
-        <div class="table-responsive">
-            <table class="table table-dark table-striped table-hover">
+
+        <!-- Line Items -->
+        {% if line_items %}
+        <h5>Line Items</h5>
+        <div class="table-responsive mb-4">
+            <table class="table table-dark table-hover">
                 <thead>
                     <tr>
                         <th>Description</th>
-                        <th>Category</th>
-                        <th class="text-end">Quantity</th>
-                        <th class="text-end">Amount</th>
-                        <th class="text-end">Total</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% if line_items %}
-                        {% for item in line_items %}
-                            <tr>
-                                <td>{{ item.data.description }}</td>
-                                <td>
-                                    {% if item.data.get('category') %}
-                                        <span class="badge bg-info">{{ item.data.category }}</span>
-                                        {% if item.data.get('subcategory') %}
-                                            <small class="text-muted d-block">{{ item.data.subcategory }}</small>
-                                        {% endif %}
-                                        {% if item.data.get('is_asset') %}
-                                            <span class="badge bg-warning text-dark">Asset</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Expense</span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="badge bg-secondary">Uncategorized</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-end">{{ item.data.quantity|default(1, true) }}</td>
-                                <td class="text-end">${{ "%.2f"|format(item.data.amount|float) }}</td>
-                                <td class="text-end">${{ "%.2f"|format((item.data.amount|float) * (item.data.quantity|default(1, true))) }}</td>
-                            </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="5" class="text-center">No line items found</td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-                <tfoot>
-                    <tr class="table-secondary">
-                        <th colspan="4" class="text-end">Total:</th>
-                        <th class="text-end">${{ "%.2f"|format(invoice.data.total_amount|float) }}</th>
+                    {% for item in line_items %}
+                    <tr>
+                        <td>{{ item.data.get('description', 'N/A') }}</td>
+                        <td>{{ item.data.get('quantity', 1) }}</td>
+                        <td>${{ "%.2f"|format(item.data.get('unit_price', 0)) }}</td>
+                        <td>${{ "%.2f"|format(item.data.get('total_price', 0)) }}</td>
                     </tr>
-                </tfoot>
+                    {% endfor %}
+                </tbody>
             </table>
         </div>
-        
-        {% if asset %}
-            <div class="card bg-dark mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center bg-dark">
-                    <h4 class="mb-0">
-                        <i class="fas fa-laptop me-2"></i>
-                        Asset Details
-                    </h4>
-                    <div class="d-flex align-items-center">
-                        <button id="reEvaluateAssetBtn" class="btn btn-outline-primary btn-sm me-3" data-asset-id="{{ asset.id }}">
-                            <i class="fas fa-sync-alt me-1"></i> Re-evaluate
-                        </button>
-                        {% if asset.data.needs_approval %}
-                            <span class="badge bg-warning text-dark">Needs Approval</span>
-                        {% elif asset.data.approved == false %}
-                            <span class="badge bg-danger">Rejected</span>
-                        {% else %}
-                            <span class="badge bg-success">Approved</span>
+        {% endif %}
+
+        <!-- Created Objects -->
+        {% if objects %}
+        <h5>Objects Created from This Receipt</h5>
+        <div class="row">
+            {% for obj in objects %}
+            <div class="col-md-4 mb-3">
+                <div class="card bg-secondary">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ obj.data.get('name', 'Unnamed Object') }}</h6>
+                        <p class="card-text">
+                            <span class="badge bg-primary">{{ obj.object_type|capitalize }}</span>
+                            {% if obj.data.get('category') %}
+                                <span class="badge bg-info">{{ obj.data.category }}</span>
+                            {% endif %}
+                        </p>
+                        {% if obj.data.get('acquisition_cost') %}
+                            <p class="mb-0"><small>Cost: ${{ "%.2f"|format(obj.data.acquisition_cost) }}</small></p>
                         {% endif %}
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="row mb-4">
-                        <div class="col-md-7">
-                            <h5 class="mb-3">{{ asset.data.name }}</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p class="mb-1"><strong>Manufacturer:</strong> {{ asset.data.manufacturer if asset.data.manufacturer else asset.data.vendor }}</p>
-                                    <p class="mb-1"><strong>Model:</strong> {{ asset.data.model if asset.data.model else asset.data.model_number }}</p>
-                                    <p class="mb-1"><strong>Category:</strong> 
-                                        {% if asset.data.category %}
-                                            <span class="badge bg-info">{{ asset.data.category }}</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Uncategorized</span>
-                                        {% endif %}
-                                    </p>
-                                    {% if asset.data.upc %}
-                                        <p class="mb-1"><strong>UPC:</strong> {{ asset.data.upc }}</p>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-6">
-                                    <p class="mb-1"><strong>Acquisition Date:</strong> {{ asset.data.acquisition_date }}</p>
-                                    <p class="mb-1"><strong>Acquisition Cost:</strong> ${{ "%.2f"|format(asset.data.acquisition_cost|float) }}</p>
-                                    {% if asset.data.estimated_value %}
-                                        <p class="mb-1"><strong>Estimated Value:</strong> <span class="text-success">${{ "%.2f"|format(asset.data.estimated_value|float) }}</span></p>
-                                    {% endif %}
-                                    {% if asset.data.useful_life_years %}
-                                        <p class="mb-1"><strong>Useful Life:</strong> {{ asset.data.useful_life_years }} years</p>
-                                    {% endif %}
-                                    {% if asset.data.warranty_period %}
-                                        <p class="mb-1"><strong>Warranty:</strong> {{ asset.data.warranty_period }}</p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-5">
-                            {% if asset.data.description %}
-                                <div class="mb-3">
-                                    <h6>Description</h6>
-                                    <p>{{ asset.data.description }}</p>
-                                </div>
-                            {% endif %}
-                            {% if asset.data.specifications and asset.data.specifications|length > 0 %}
-                                <div>
-                                    <h6>Specifications</h6>
-                                    <ul class="list-group list-group-flush bg-dark">
-                                        {% for key, value in asset.data.specifications.items() %}
-                                            <li class="list-group-item bg-dark">{{ key }}: <strong>{{ value }}</strong></li>
-                                        {% endfor %}
-                                    </ul>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    {% if asset.data.needs_approval %}
-                        <div class="d-flex justify-content-end mt-2">
-                            <button type="button" class="btn btn-success me-2" id="approveAssetBtn" data-asset-id="{{ asset.id }}">
-                                <i class="fas fa-check me-1"></i> Approve Asset
-                            </button>
-                            <button type="button" class="btn btn-danger" id="rejectAssetBtn" data-asset-id="{{ asset.id }}">
-                                <i class="fas fa-times me-1"></i> Reject
-                            </button>
-                        </div>
-                        <div id="assetApprovalResult" class="alert mt-3 d-none"></div>
-                    {% endif %}
-                </div>
             </div>
+            {% endfor %}
+        </div>
         {% endif %}
     </div>
 </div>
-<!-- Link to Vendor Modal -->
-<div class="modal fade" id="linkVendorModal" tabindex="-1" aria-labelledby="linkVendorModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark">
-            <div class="modal-header">
-                <h5 class="modal-title" id="linkVendorModalLabel">Link Receipt to Vendor</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                {% if attachments %}
-                <div id="aiDetectionSection" class="mb-4">
-                    <h6>Auto-Detect Vendor</h6>
-                    <div class="d-flex align-items-center mb-3">
-                        <button id="detectVendorBtn" class="btn btn-info me-2">
-                            <i class="fas fa-magic me-1"></i> Detect Vendor from Receipt
-                        </button>
-                        <div id="detectionSpinner" class="spinner-border spinner-border-sm text-info d-none" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                    </div>
-                    <div id="detectionResult" class="alert alert-info d-none">
-                        <span id="detectionMessage"></span>
-                    </div>
-                </div>
-                {% endif %}
-                
-                <div id="existingVendorsSection">
-                    <h6>Select Existing Vendor</h6>
-                    <div class="mb-3">
-                        <label for="vendorSelect" class="form-label">Choose a vendor</label>
-                        <select class="form-select" id="vendorSelect">
-                            <option value="">-- Select a vendor --</option>
-                            {% for vendor in vendors %}
-                                <option value="{{ vendor.id }}">{{ vendor.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <hr>
-                <div id="newVendorSection">
-                    <h6>Or Add New Vendor</h6>
-                    <div class="mb-3">
-                        <a href="{{ url_for('add_vendor') }}" class="btn btn-outline-primary">
-                            <i class="fas fa-plus me-1"></i> Add New Vendor
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="linkVendorBtn" disabled>Link Vendor</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Receipt Confirmation Modal -->
-<div class="modal fade" id="deleteReceiptModal" tabindex="-1" aria-labelledby="deleteReceiptModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteReceiptModalLabel">Confirm Delete Receipt</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Warning:</strong> This action cannot be undone. Are you sure you want to delete this receipt and all associated data?
-                </div>
-                <p>Receipt details:</p>
-                <ul>
-                    <li>Invoice #: {{ invoice.invoice_number }}</li>
-                    <li>Date: {{ invoice.data.date }}</li>
-                    <li>Vendor: {{ invoice.vendor.name if invoice.vendor else invoice.data.vendor }}</li>
-                    <li>Amount: ${{ "%.2f"|format(invoice.data.total_amount|float) }}</li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('delete_receipt', receipt_id=invoice.id) }}" method="post">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash me-1"></i> Yes, Delete Receipt
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const vendorSelect = document.getElementById('vendorSelect');
-    const linkVendorBtn = document.getElementById('linkVendorBtn');
-    const detectVendorBtn = document.getElementById('detectVendorBtn');
-    const detectionSpinner = document.getElementById('detectionSpinner');
-    const detectionResult = document.getElementById('detectionResult');
-    const detectionMessage = document.getElementById('detectionMessage');
-    const quickAutoDetectBtn = document.getElementById('quickAutoDetectBtn');
-    
-    // Re-evaluate elements
-    const reEvaluateReceiptBtn = document.getElementById('reEvaluateReceiptBtn');
-    const reEvaluateAssetBtn = document.getElementById('reEvaluateAssetBtn');
-    
-    // Expense categorization elements
-    const categorizeExpensesBtn = document.getElementById('categorizeExpensesBtn');
-    const categorizationSpinner = document.getElementById('categorizationSpinner');
-    const categorizationResult = document.getElementById('categorizationResult');
-    
-    // Enable/disable link button based on selection
-    vendorSelect.addEventListener('change', function() {
-        linkVendorBtn.disabled = !vendorSelect.value;
-    });
-    
-    // Handle vendor detection button click
-    if (detectVendorBtn) {
-        detectVendorBtn.addEventListener('click', function() {
-            // Show spinner
-            detectVendorBtn.disabled = true;
-            detectionSpinner.classList.remove('d-none');
-            detectionResult.classList.add('d-none');
-            
-            // Call API to detect vendor from receipt image
-            fetch('{{ url_for("detect_vendor_from_receipt", receipt_id=invoice.id) }}')
-                .then(response => response.json())
-                .then(data => {
-                    // Hide spinner
-                    detectVendorBtn.disabled = false;
-                    detectionSpinner.classList.add('d-none');
-                    detectionResult.classList.remove('d-none');
-                    
-                    if (data.success) {
-                        detectionResult.classList.remove('alert-danger');
-                        detectionResult.classList.add('alert-success');
-                        
-                        // Check if auto-linked
-                        if (data.auto_linked) {
-                            detectionMessage.innerHTML = `<strong>Success!</strong> ${data.message}<br>The vendor has been automatically linked to this receipt. <a href="javascript:location.reload()">Refresh page</a> to see changes.`;
-                        }
-                        // If vendor ID was found but not auto-linked
-                        else if (data.vendor_id) {
-                            vendorSelect.value = data.vendor_id;
-                            linkVendorBtn.disabled = false;
-                            detectionMessage.innerHTML = `<strong>Detected vendor:</strong> ${data.vendor_name}<br>Selected in dropdown. Click "Link Vendor" to confirm.`;
-                        } 
-                        // If vendor name found but no ID and not auto-created
-                        else if (data.vendor_name && !data.auto_created) {
-                            detectionMessage.innerHTML = `<strong>Detected vendor:</strong> ${data.vendor_name}<br>This vendor is not in the system yet. <a href="{{ url_for('add_vendor') }}" class="alert-link">Add it</a> first.`;
-                        } 
-                        // No vendor detected
-                        else if (!data.vendor_name) {
-                            detectionMessage.innerHTML = 'Could not detect a vendor name in this receipt.';
-                        }
-                    } else {
-                        detectionResult.classList.remove('alert-success');
-                        detectionResult.classList.add('alert-danger');
-                        detectionMessage.textContent = 'Error: ' + (data.error || 'Could not analyze receipt');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    detectVendorBtn.disabled = false;
-                    detectionSpinner.classList.add('d-none');
-                    detectionResult.classList.remove('d-none');
-                    detectionResult.classList.remove('alert-success');
-                    detectionResult.classList.add('alert-danger');
-                    detectionMessage.textContent = 'An error occurred. Please try again.';
-                });
-        });
-    }
-    
-    // Handle quick auto-detect button click (on the main page)
-    if (quickAutoDetectBtn) {
-        quickAutoDetectBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // Show a loading spinner in place of the button text
-            const originalText = quickAutoDetectBtn.innerHTML;
-            quickAutoDetectBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Detecting...';
-            quickAutoDetectBtn.disabled = true;
-            
-            // Call the API to detect and automatically link vendor
-            fetch('{{ url_for("detect_vendor_from_receipt", receipt_id=invoice.id) }}')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && (data.auto_linked || data.auto_created)) {
-                        // Success - reload the page to show the linked vendor
-                        location.reload();
-                    } else {
-                        // Not auto-linked or error - keep the modal open with more options
-                        quickAutoDetectBtn.innerHTML = originalText;
-                        quickAutoDetectBtn.disabled = false;
-                        
-                        // Simulate click on the main detect button in the modal
-                        if (detectVendorBtn) {
-                            detectVendorBtn.click();
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    quickAutoDetectBtn.innerHTML = originalText;
-                    quickAutoDetectBtn.disabled = false;
-                    alert('An error occurred. Please try again.');
-                });
-        });
-    }
-    
-    // Handle link vendor button click
-    linkVendorBtn.addEventListener('click', function() {
-        const vendorId = vendorSelect.value;
-        if (!vendorId) return;
-        
-        fetch('{{ url_for("link_invoice_vendor") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                invoice_id: {{ invoice.id }},
-                vendor_id: vendorId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Reload page to show updated vendor link
-                location.reload();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-        });
-    });
-    
-    // Asset approval functionality
-    const approveAssetBtn = document.getElementById('approveAssetBtn');
-    const rejectAssetBtn = document.getElementById('rejectAssetBtn');
-    const assetApprovalResult = document.getElementById('assetApprovalResult');
-    
-    if (approveAssetBtn) {
-        approveAssetBtn.addEventListener('click', function() {
-            const assetId = approveAssetBtn.getAttribute('data-asset-id');
-            if (!assetId) return;
-            
-            // Disable buttons while processing
-            approveAssetBtn.disabled = true;
-            if (rejectAssetBtn) rejectAssetBtn.disabled = true;
-            
-            // Show loading message
-            assetApprovalResult.classList.remove('d-none', 'alert-success', 'alert-danger');
-            assetApprovalResult.classList.add('alert-info');
-            assetApprovalResult.innerHTML = '<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div>Processing approval...</div>';
-            
-            // Call API to approve asset
-            fetch(`/api/approve-asset/${assetId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update UI to show success
-                    assetApprovalResult.classList.remove('alert-info', 'alert-danger');
-                    assetApprovalResult.classList.add('alert-success');
-                    assetApprovalResult.innerHTML = `
-                        <strong>Success!</strong> ${data.message}
-                        <div class="mt-2">
-                            <a href="javascript:location.reload()" class="btn btn-sm btn-primary">
-                                <i class="fas fa-sync-alt me-1"></i> Refresh Page
-                            </a>
-                        </div>
-                    `;
-                } else {
-                    // Show error
-                    assetApprovalResult.classList.remove('alert-info', 'alert-success');
-                    assetApprovalResult.classList.add('alert-danger');
-                    assetApprovalResult.textContent = 'Error: ' + (data.error || 'Failed to approve asset');
-                    
-                    // Re-enable buttons
-                    approveAssetBtn.disabled = false;
-                    if (rejectAssetBtn) rejectAssetBtn.disabled = false;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                assetApprovalResult.classList.remove('alert-info', 'alert-success');
-                assetApprovalResult.classList.add('alert-danger');
-                assetApprovalResult.textContent = 'An error occurred. Please try again.';
-                
-                // Re-enable buttons
-                approveAssetBtn.disabled = false;
-                if (rejectAssetBtn) rejectAssetBtn.disabled = false;
-            });
-        });
-    }
-    
-    // Handle re-evaluate receipt button click
-    if (reEvaluateReceiptBtn) {
-        reEvaluateReceiptBtn.addEventListener('click', function() {
-            const invoiceId = reEvaluateReceiptBtn.getAttribute('data-invoice-id');
-            if (!invoiceId) return;
-            
-            // Disable button and show a temporary spinner next to the button
-            reEvaluateReceiptBtn.disabled = true;
-            const originalBtnText = reEvaluateReceiptBtn.innerHTML;
-            reEvaluateReceiptBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Re-evaluating...';
-            
-            // Call API to re-evaluate receipt
-            fetch(`/api/re-evaluate-receipt/${invoiceId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Enable button and restore text
-                reEvaluateReceiptBtn.disabled = false;
-                reEvaluateReceiptBtn.innerHTML = originalBtnText;
-                
-                if (data.success) {
-                    // Show success message and reload page
-                    alert('Receipt successfully re-evaluated! Page will refresh to show updates.');
-                    location.reload();
-                } else {
-                    // Show error message
-                    alert('Error: ' + (data.error || 'Failed to re-evaluate receipt'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Enable button and restore text
-                reEvaluateReceiptBtn.disabled = false;
-                reEvaluateReceiptBtn.innerHTML = originalBtnText;
-                alert('An error occurred. Please try again.');
-            });
-        });
-    }
-    
-    // Handle re-evaluate asset button click
-    if (reEvaluateAssetBtn) {
-        reEvaluateAssetBtn.addEventListener('click', function() {
-            const assetId = reEvaluateAssetBtn.getAttribute('data-asset-id');
-            if (!assetId) return;
-            
-            // Disable button and show a temporary spinner next to the button
-            reEvaluateAssetBtn.disabled = true;
-            const originalBtnText = reEvaluateAssetBtn.innerHTML;
-            reEvaluateAssetBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Re-evaluating...';
-            
-            // Call API to re-evaluate asset
-            fetch(`/api/re-evaluate-asset/${assetId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Enable button and restore text
-                reEvaluateAssetBtn.disabled = false;
-                reEvaluateAssetBtn.innerHTML = originalBtnText;
-                
-                if (data.success) {
-                    // Show success message and reload page
-                    alert('Asset successfully re-evaluated! Page will refresh to show updates.');
-                    location.reload();
-                } else {
-                    // Show error message
-                    alert('Error: ' + (data.error || 'Failed to re-evaluate asset'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Enable button and restore text
-                reEvaluateAssetBtn.disabled = false;
-                reEvaluateAssetBtn.innerHTML = originalBtnText;
-                alert('An error occurred. Please try again.');
-            });
-        });
-    }
-    
-    // Handle expense categorization button click
-    if (categorizeExpensesBtn) {
-        categorizeExpensesBtn.addEventListener('click', function() {
-            const invoiceId = categorizeExpensesBtn.getAttribute('data-invoice-id');
-            if (!invoiceId) return;
-            
-            // Disable button and show spinner
-            categorizeExpensesBtn.disabled = true;
-            categorizationSpinner.classList.remove('d-none');
-            categorizationResult.classList.add('d-none');
-            
-            // Call API to categorize expenses
-            fetch(`/api/categorize-expenses/${invoiceId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Enable button and hide spinner
-                categorizeExpensesBtn.disabled = false;
-                categorizationSpinner.classList.add('d-none');
-                categorizationResult.classList.remove('d-none');
-                
-                if (data.success) {
-                    // Show success message
-                    categorizationResult.classList.remove('alert-danger');
-                    categorizationResult.classList.add('alert-success');
-                    categorizationResult.innerHTML = `
-                        <strong>Success!</strong> ${data.message}<br>
-                        <div class="mt-2">
-                            <a href="javascript:location.reload()" class="btn btn-sm btn-primary">
-                                <i class="fas fa-sync-alt me-1"></i> Refresh Page to See Categories
-                            </a>
-                        </div>
-                    `;
-                } else {
-                    // Show error message
-                    categorizationResult.classList.remove('alert-success');
-                    categorizationResult.classList.add('alert-danger');
-                    categorizationResult.textContent = 'Error: ' + (data.error || 'Failed to categorize expenses');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                categorizeExpensesBtn.disabled = false;
-                categorizationSpinner.classList.add('d-none');
-                categorizationResult.classList.remove('d-none');
-                categorizationResult.classList.remove('alert-success');
-                categorizationResult.classList.add('alert-danger');
-                categorizationResult.textContent = 'An error occurred. Please try again.';
-            });
-        });
-    }
-    
-    if (rejectAssetBtn) {
-        rejectAssetBtn.addEventListener('click', function() {
-            const assetId = rejectAssetBtn.getAttribute('data-asset-id');
-            if (!assetId) return;
-            
-            // Disable buttons while processing
-            rejectAssetBtn.disabled = true;
-            if (approveAssetBtn) approveAssetBtn.disabled = true;
-            
-            // Show loading message
-            assetApprovalResult.classList.remove('d-none', 'alert-success', 'alert-danger');
-            assetApprovalResult.classList.add('alert-info');
-            assetApprovalResult.innerHTML = '<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div>Processing rejection...</div>';
-            
-            // Call API to reject asset
-            fetch(`/api/reject-asset/${assetId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update UI to show success
-                    assetApprovalResult.classList.remove('alert-info', 'alert-danger');
-                    assetApprovalResult.classList.add('alert-success');
-                    assetApprovalResult.innerHTML = `
-                        <strong>Success!</strong> ${data.message}
-                        <div class="mt-2">
-                            <a href="javascript:location.reload()" class="btn btn-sm btn-primary">
-                                <i class="fas fa-sync-alt me-1"></i> Refresh Page
-                            </a>
-                        </div>
-                    `;
-                } else {
-                    // Show error
-                    assetApprovalResult.classList.remove('alert-info', 'alert-success');
-                    assetApprovalResult.classList.add('alert-danger');
-                    assetApprovalResult.textContent = 'Error: ' + (data.error || 'Failed to reject asset');
-                    
-                    // Re-enable buttons
-                    rejectAssetBtn.disabled = false;
-                    if (approveAssetBtn) approveAssetBtn.disabled = false;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                assetApprovalResult.classList.remove('alert-info', 'alert-success');
-                assetApprovalResult.classList.add('alert-danger');
-                assetApprovalResult.textContent = 'An error occurred. Please try again.';
-                
-                // Re-enable buttons
-                rejectAssetBtn.disabled = false;
-                if (approveAssetBtn) approveAssetBtn.disabled = false;
-            });
-        });
-    }
-});
-</script>
-{% endblock %}
 {% endblock %}

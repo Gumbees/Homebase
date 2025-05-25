@@ -50,84 +50,295 @@ class PromptManager:
         """Create default prompt templates if they don't exist"""
         default_templates = {
             "receipt_analysis": {
-                "content": """You are an expert at analyzing receipts and extracting structured data. 
+                "content": """You are an expert at analyzing receipts and extracting comprehensive structured data for inventory and relationship management. 
 
-Analyze the provided receipt image and extract the following information:
+Analyze the provided receipt image and extract ALL relevant information systematically:
 
-REQUIRED FIELDS:
-- vendor_name: The business name
-- date: Transaction date in YYYY-MM-DD format  
-- total_amount: Total amount paid (numeric)
+## CRITICAL: TOTAL AMOUNT DETECTION (HIGHEST PRIORITY)
+⚠️ **FINDING THE TOTAL AMOUNT IS ABSOLUTELY CRITICAL** ⚠️
 
-OPTIONAL FIELDS:
-- subtotal: Subtotal before tax
-- tax_amount: Tax amount
-- receipt_number: Receipt/invoice number
-- description: Brief description of purchase
-- due_date: Due date if this is a bill (YYYY-MM-DD format)
-- is_bill: true if this is an unpaid bill, false if it's a paid receipt
+Use EVERY possible strategy to find the total amount paid:
 
-LINE ITEMS:
-For each item purchased, extract:
-- description: Item name/description
-- quantity: Number of items (default 1.0)
+### PRIMARY STRATEGIES:
+1. **Scan for total keywords** (case-insensitive):
+   - "Total", "TOTAL", "Total Amount", "Grand Total", "Final Total"
+   - "Amount Due", "AMOUNT DUE", "Balance Due", "Amount Owed"
+   - "Total Cost", "Total Price", "Sum", "Final Amount"
+   - "Pay Amount", "Payment Amount", "Charge Amount"
+
+2. **Look for currency symbols** with large numbers:
+   - $ followed by the largest monetary amount on the document
+   - Look for bold, highlighted, or emphasized monetary amounts
+   - Check for amounts in boxes or special formatting
+
+3. **Multi-page document handling**:
+   - If this appears to be a multi-page document, scan ALL pages
+   - Email receipts often have totals at the bottom of the email body
+   - Look for summary sections, final calculation areas
+   - Check footers and bottom sections of each page
+
+4. **Mathematical validation**:
+   - If you find line items, sum them up as a backup
+   - Add subtotal + tax + fees + tips to verify totals
+   - Use the largest reasonable monetary amount if unclear
+
+5. **Context clues**:
+   - For email receipts: Look for "You paid", "Charged", "Transaction total"
+   - For invoices: Look for "Amount Due", "Balance", "Pay This Amount"
+   - For confirmations: Look for "Total Cost", "Order Total"
+
+### FALLBACK STRATEGIES:
+- If no explicit total found, sum all line items
+- If no line items, use subtotal + tax + fees
+- If multiple potential totals, use the largest reasonable amount
+- **NEVER return None or empty for total_amount** - always provide a number
+
+## BASIC RECEIPT INFORMATION (REQUIRED)
+- vendor_name: The business name (look in headers, footers, stamps, logos, email senders)
+- date: Transaction date in YYYY-MM-DD format (check multiple locations: top, bottom, line items, email headers)
+- total_amount: **MUST ALWAYS BE A NUMBER** - use the strategies above
+
+## FINANCIAL DETAILS
+- subtotal: Amount before tax/fees
+- tax_amount: Tax amount (sales tax, VAT, etc.)
+- tip_amount: Tip or gratuity if present
+- fees: Any additional fees (service charges, processing fees)
+- receipt_number: Receipt/invoice/confirmation number
+- payment_method: How payment was made (cash, card, etc.)
+
+## DOCUMENT TYPE CLASSIFICATION
+- due_date: Due date if this is a bill/invoice (YYYY-MM-DD format)
+- is_bill: true if unpaid bill, false if paid receipt
+- document_type: "receipt", "invoice", "bill", "ticket", "confirmation", "email_receipt", etc.
+
+## COMPREHENSIVE LINE ITEM ANALYSIS
+For EVERY item purchased, extract:
+- description: Full item name/description
+- quantity: Number of items (default 1.0 if not specified)
 - unit_price: Price per unit
 - total_price: Total price for this line item
-- category: Suggested category (e.g., "groceries", "electronics", "tools")
-- suggested_object_type: "asset", "consumable", "component", or "service"
+- item_details: Any additional details (size, color, model, etc.)
 
-CONFIDENCE:
-Provide a confidence score (0.0-1.0) for the overall extraction accuracy.
+## OBJECT CATEGORIZATION & CREATION
+For each line item, determine:
+- create_object: true/false - should this become an inventory object?
+  **IMPORTANT: Be generous with object creation, especially for:**
+  * Event tickets (ALWAYS create_object: true)
+  * Service subscriptions and memberships
+  * Software licenses and digital products
+  * Any item with proof of purchase or reference numbers
+  * Items that have ongoing value or need tracking
+  
+- object_type: Must be one of: "asset", "consumable", "component", "service", "software"
+  * asset: Durable goods, equipment, vehicles, electronics
+  * consumable: Items that get used up (food, tickets, supplies, fuel)
+  * component: Parts of larger assets
+  * service: Professional services, subscriptions, memberships, event tickets
+  * software: Digital products, licenses, apps
+  
+- category: Suggest appropriate category name (e.g., "Event Tickets", "Office Supplies", "Electronics", "Food & Beverage")
+  **For tickets/events: ALWAYS use "Event Tickets" category**
+  
+- expiration_info: For consumables, extract:
+  * expiration_date: When item expires (YYYY-MM-DD)
+  * event_date: For tickets/events (YYYY-MM-DD)
+  * shelf_life_days: Expected useful life
+  
+- object_details: Additional object-specific information:
+  * serial_numbers: Any serial/model numbers
+  * specifications: Technical specs or features
+  * warranty_info: Warranty details if mentioned
 
-Return the data as valid JSON matching the receipt_data schema.""",
-                "description": "Analyzes receipt images and extracts structured data",
+## PEOPLE & RELATIONSHIPS EXTRACTION
+Look for and extract ANY people mentioned:
+- customer_name: Name of the purchaser/customer
+- staff_names: Employee names if visible
+- event_attendees: Names on tickets or reservations
+- contact_persons: Any listed contacts
+For each person found:
+- create_person_object: true
+- person_name: Full name
+- role: "customer", "staff", "attendee", "contact", etc.
+- relationship_to_purchase: How they relate to this transaction
+
+## DIGITAL ASSETS & ATTACHMENTS
+Extract any digital references:
+- qr_codes: Describe any QR codes present
+- barcodes: Product barcodes or ticket codes
+- urls: Any websites or links mentioned
+- confirmation_codes: Booking/confirmation numbers
+- ticket_numbers: Seat numbers, reference codes
+- account_numbers: Customer account references
+
+## EVENT & LOCATION DETAILS (if applicable)
+- event_name: Name of event/service
+- event_date: Date of event/service (YYYY-MM-DD)
+- event_time: Time of event
+- venue_location: Venue/location name and address
+- seat_info: Seat numbers, sections, etc.
+
+## VENDOR DETAILS ENHANCEMENT
+- business_address: Full business address
+- business_phone: Phone number
+- business_email: Email address
+- business_website: Website URL
+- business_hours: Operating hours if shown
+- business_type: Type of business (restaurant, retail, service, etc.)
+
+## CONFIDENCE & QUALITY ASSESSMENT
+- overall_confidence: Overall confidence (0.0-1.0) in extraction accuracy
+- image_quality: Assessment of receipt image quality
+- missing_information: List any information that might be missing or unclear
+- extraction_notes: Any notable observations about the receipt
+
+## SPECIAL HANDLING FOR EMAIL RECEIPTS
+If this appears to be an email receipt or confirmation:
+- Look for "Amount charged", "You paid", "Transaction total"
+- Check email signature areas for business details
+- Look for confirmation numbers in subject lines
+- Scan the entire email body, not just attachment images
+
+## CATEGORIZATION GUIDELINES
+When suggesting categories:
+- Be specific and descriptive (e.g., "Event Tickets" not just "Tickets")
+- Use common business terminology
+- Consider the context and industry
+- For new categories, be confident - don't hesitate to create appropriate categories
+- Examples: "Restaurant Meals", "Office Supplies", "Event Tickets", "Automotive Parts", "Home Improvement", "Technology Equipment", "Healthcare Services"
+
+## OBJECT TYPE DECISION MATRIX
+- **Consumable**: Food, drinks, tickets, fuel, office supplies, medications
+- **Asset**: Electronics, furniture, vehicles, tools, equipment
+- **Service**: Labor, consulting, subscriptions, maintenance
+- **Component**: Parts, accessories, modules for existing assets
+- **Software**: Applications, licenses, digital products
+
+## CRITICAL REMINDERS:
+1. **TOTAL AMOUNT MUST NEVER BE NULL OR EMPTY** - always provide a numeric value
+2. **Scan the ENTIRE document** - totals can be anywhere
+3. **Use multiple detection strategies** - don't stop at the first attempt
+4. **For multi-page docs** - check every page for totals
+5. **Be thorough** - this is for comprehensive inventory management
+
+Return comprehensive structured data as valid JSON. Be absolutely certain you've found the total amount using every possible strategy.""",
+                "description": "Comprehensively analyzes receipt images and extracts all relevant structured data with aggressive total amount detection for multi-page documents",
                 "variables": [],
                 "output_schema": "receipt_data"
             },
             
             "object_categorization": {
-                "content": """You are an expert at categorizing and analyzing physical objects for inventory management.
+                "content": """You are an expert at categorizing, analyzing, and valuing physical objects for comprehensive inventory management.
 
 {% if object %}
-OBJECT DETAILS:
+EXISTING OBJECT DETAILS:
 {{ object | tojson(indent=2) }}
 {% endif %}
 
 {% if image_data %}
-IMAGE: Analyze the provided image of this object.
+IMAGE ANALYSIS: Carefully analyze the provided image of this object.
 {% endif %}
 
-Analyze this object and provide the following categorization and analysis:
+{% if user_description %}
+USER DESCRIPTION: {{ user_description }}
+{% endif %}
 
-CATEGORIZATION:
-- suggested_type: One of "asset", "consumable", "component", "person", "pet", "service", "software"
-- suggested_categories: Array of relevant categories (e.g., ["Electronics", "Computing", "Office Equipment"])
+{% if estimated_age %}
+USER ESTIMATED AGE: {{ estimated_age }}
+{% endif %}
 
-VALUATION (if applicable):
-- estimated_value: Current estimated value in USD
-- useful_life_years: Expected useful life in years
-- depreciation_rate: Annual depreciation rate (0.0-1.0)
+{% if condition_notes %}
+USER CONDITION NOTES: {{ condition_notes }}
+{% endif %}
 
-SPECIFICATIONS:
-- specifications: Object with technical specifications and details
+{% if purchase_info %}
+USER PURCHASE INFO: {{ purchase_info }}
+{% endif %}
 
-MAINTENANCE:
-- maintenance_schedule: Recommended maintenance schedule
-- storage_requirements: Special storage requirements
-- safety_considerations: Array of safety considerations
+{% if analysis_purpose == 'inventory_valuation' %}
+PURPOSE: This analysis is for insurance documentation and physical inventory valuation.
+{% endif %}
 
-CONFIDENCE:
-Provide a confidence score (0.0-1.0) for your analysis.
+Provide comprehensive object analysis and valuation:
+
+## OBJECT IDENTIFICATION
+- object_name: Clear, descriptive name for the object
+- description: Detailed description of what this object is
+- brand_model: Brand and model if identifiable
+- serial_numbers: Any visible serial numbers, model numbers, or product codes
+
+## CATEGORIZATION
+- object_type: One of "asset", "consumable", "component", "service", "software"
+  * asset: Durable goods, equipment, vehicles, electronics, furniture, tools
+  * consumable: Items that get used up (office supplies, consumables)
+  * component: Parts of larger assets
+  * service: Service agreements, warranties
+  * software: Digital products, licenses
+- category: Specific category (e.g., "Electronics", "Furniture", "Tools", "Appliances", "Jewelry", "Artwork")
+
+## COMPREHENSIVE VALUATION
+- estimated_current_value: Current market value in USD (be realistic and conservative)
+- value_confidence: Confidence in valuation (0.0-1.0)
+- condition_assessment: "Excellent", "Very Good", "Good", "Fair", "Poor"
+- depreciation_factors: What affects value (age, wear, market demand, etc.)
+- market_trend: "Appreciating", "Stable", "Depreciating"
+- replacement_cost: Cost to replace with equivalent new item
+
+## CONDITION & AGE ASSESSMENT
+- estimated_age_years: Estimated age in years
+- wear_indicators: Visible signs of wear or damage
+- maintenance_needs: Any obvious maintenance requirements
+- useful_life_remaining: Estimated remaining useful life
+
+## DETAILED SPECIFICATIONS
+- specifications: Technical specifications, features, capabilities
+- materials: What the object is made of (metal, plastic, wood, etc.)
+- dimensions: Approximate size/dimensions if determinable
+- weight_estimate: Estimated weight
+
+## INSURANCE & DOCUMENTATION
+- insurance_category: Appropriate insurance classification
+- special_considerations: Fragility, security needs, environmental requirements
+- documentation_notes: Important details for insurance claims
+- replacement_difficulty: How easy/hard to replace (Common, Moderate, Difficult, Rare)
+
+## MARKET ANALYSIS
+- demand_level: "High", "Medium", "Low"
+- liquidity: How easily it could be sold
+- comparable_items: Similar items for value reference
+- selling_venues: Where this could typically be sold
+
+## RECOMMENDATIONS
+- disposition_recommendation: "Keep", "Sell", "Donate", "Dispose", "Repair"
+- maintenance_priority: "High", "Medium", "Low"
+- insurance_recommendation: Whether to specifically insure this item
+- storage_recommendations: Optimal storage conditions
+
+## CONFIDENCE ASSESSMENT
+- confidence: Overall confidence (0.0-1.0) in this analysis
+- uncertainty_factors: What could affect accuracy of assessment
+- additional_info_needed: What additional information would improve analysis
+
+## VALUATION METHODOLOGY
+Explain your valuation approach:
+- Market research basis (retail, used market, auction values)
+- Condition adjustments applied
+- Age/depreciation factors considered
+- Any special value considerations (vintage, collectible, etc.)
 
 Consider factors like:
-- Item condition and age
-- Market value and depreciation
-- Maintenance requirements
-- Safety and storage needs
+- Current condition and visible wear
+- Age and expected depreciation
+- Market demand and availability
+- Brand reputation and quality
+- Original purchase price estimates
+- Replacement cost in current market
+- Any special features or rarity
 
-Return the data as valid JSON matching the object_analysis schema.""",
-                "description": "Categorizes and analyzes objects for inventory management",
-                "variables": ["object", "image_data"],
+Be conservative but realistic in valuations. For insurance purposes, err on the side of documented market values rather than optimistic estimates.
+
+Return structured analysis as valid JSON matching the object_analysis schema.""",
+                "description": "Comprehensively categorizes, analyzes, and values objects for inventory management and insurance documentation",
+                "variables": ["object", "image_data", "user_description", "estimated_age", "condition_notes", "purchase_info", "analysis_purpose"],
                 "output_schema": "object_analysis"
             },
             

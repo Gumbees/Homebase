@@ -38,6 +38,95 @@ Homebase is a comprehensive home inventory management system that combines recei
 - **Stock Management**: Track inventory levels and reorder thresholds
 - **Background Processing**: Queued tasks for heavy operations
 
+## 🏗️ Data Model
+
+Homebase uses a clear conceptual framework that separates **Entities** (informational/administrative records) from **Objects** (physical/tangible items). This design makes the system intuitive for developers and users alike.
+
+### 📋 Entities
+**Entities** are informational records that document, manage, or organize Objects. They exist in the digital/administrative realm and represent processes, documentation, or metadata.
+
+| Entity Type | Purpose | Example |
+|-------------|---------|---------|
+| **Invoices** | Financial transaction records | Receipt from Best Buy documenting laptop purchase |
+| **Organizations** | Business relationship management | Best Buy Inc., Local Plumbing Services, Amazon.com |
+| **Users** | System access and digital identity | User accounts, login profiles, system permissions |
+| **Notes** | Documentation and comments | Maintenance notes for office equipment |
+| **Tasks** | Work items and to-dos | "Schedule annual equipment inspection" |
+| **Calendar Appointments** | Scheduled events | Maintenance appointment for HVAC system |
+| **Collections** | Grouped sets of objects | "Office Equipment", "Kitchen Appliances" |
+| **Actions** | Historical activity records | "Moved printer from Office A to Office B" |
+
+### 🎯 Objects
+**Objects** are physical, tangible items that exist in the real world. These are the actual things you can touch, use, or store.
+
+| Object Type | Description | Examples |
+|-------------|-------------|----------|
+| **Assets** | High-value, durable items | Laptops, furniture, vehicles, equipment |
+| **Consumables** | Items that get used up | Office supplies, food, cleaning products |
+| **Components** | Parts of larger assets | RAM modules, replacement parts, accessories |
+| **People** | Individuals in your system | Family members, employees, contacts |
+| **Pets** | Animals under your care | Dogs, cats, fish, birds |
+| **Services** | Ongoing service contracts | Software subscriptions, maintenance contracts |
+| **Software** | Digital tools and licenses | Microsoft Office, Adobe Creative Suite |
+
+### 🔗 Entity-Object Relationships
+
+Entities and Objects are connected through meaningful relationships:
+
+```
+📄 Invoice (Entity) ──documents──> 💻 Laptop (Asset Object)
+                   └─documents──> 🖱️ Mouse (Component Object)
+
+🏢 Organization (Entity) ──employs──> 🧑 Contact Person (People Object)
+                        └─provides──> 🛍️ Services (Service Objects)
+                        └─sells──> 📦 Products (Asset/Consumable Objects)
+
+👤 User (Entity) ──represents──> 🧑 Person (People Object)
+                 └─creates──> 📄 Invoices (Entity)
+                 └─manages──> 📝 Tasks (Entity)
+
+📝 Task (Entity) ──manages──> 📎 Office Supplies (Consumable Objects)
+
+📁 Collection (Entity) ──groups──> {🖥️ Monitor, ⌨️ Keyboard, 🖱️ Mouse}
+
+📅 Calendar Event (Entity) ──schedules──> 🚗 Vehicle Maintenance (Asset Object)
+
+🏢 Organization (Entity) ──documented_in──> 📄 Invoice (Entity)
+                        └─contracted_for──> 🔧 Service Agreement (Service Object)
+```
+
+### 💾 Database Implementation
+
+The current implementation uses these primary tables:
+
+**Entity Tables:**
+- **`invoices`** - Financial transaction records
+- **`organizations`** - Business relationships and vendor management
+- **`users`** - System access, profiles, and digital identity
+- **`task_queue`** - Background processing and workflow management
+- **`calendar_events`** - Scheduled appointments and maintenance
+- **`collections`** - Grouped object sets and organization
+- **`notes`** - Documentation and comments
+
+**Object Tables:**
+- **`objects`** - Central table for all physical items
+- **`categories`** - Organization system for objects
+
+**Relationship Tables:**
+- **`invoice_line_items`** - Links invoices to specific purchased objects
+- **`attachments`** - Photos and documents for both entities and objects
+- **`ai_evaluation_queue`** - AI analysis queue for objects
+- **`organization_contacts`** - Links organizations to people objects
+- **`user_person_mapping`** - Links users to their corresponding people objects
+
+### 🎯 Design Benefits
+
+1. **Clear Mental Model**: Developers immediately understand what documents vs. manages
+2. **Flexible Relationships**: One invoice can document multiple objects; one task can manage multiple consumables
+3. **Logical Queries**: "Show me all objects documented by this invoice" vs. "Show me all tasks managing these consumables"
+4. **Extensible**: Easy to add new entity types (Reports, Contracts) or object types (Tools, Plants)
+5. **Real-World Mapping**: Structure matches how people naturally think about belongings and documentation
+
 ## 🚀 Quick Start
 
 ### Prerequisites

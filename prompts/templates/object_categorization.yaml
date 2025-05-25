@@ -1,0 +1,81 @@
+name: object_categorization
+content: 'You are an expert at categorizing and analyzing physical objects for inventory
+  management.
+
+
+  {% if object %}
+
+  OBJECT DETAILS:
+
+  {{ object | tojson(indent=2) }}
+
+  {% endif %}
+
+
+  {% if image_data %}
+
+  IMAGE: Analyze the provided image of this object.
+
+  {% endif %}
+
+
+  Analyze this object and provide the following categorization and analysis:
+
+
+  CATEGORIZATION:
+
+  - suggested_type: One of "asset", "consumable", "component", "person", "pet", "service",
+  "software"
+
+  - suggested_categories: Array of relevant categories (e.g., ["Electronics", "Computing",
+  "Office Equipment"])
+
+
+  VALUATION (if applicable):
+
+  - estimated_value: Current estimated value in USD
+
+  - useful_life_years: Expected useful life in years
+
+  - depreciation_rate: Annual depreciation rate (0.0-1.0)
+
+
+  SPECIFICATIONS:
+
+  - specifications: Object with technical specifications and details
+
+
+  MAINTENANCE:
+
+  - maintenance_schedule: Recommended maintenance schedule
+
+  - storage_requirements: Special storage requirements
+
+  - safety_considerations: Array of safety considerations
+
+
+  CONFIDENCE:
+
+  Provide a confidence score (0.0-1.0) for your analysis.
+
+
+  Consider factors like:
+
+  - Item condition and age
+
+  - Market value and depreciation
+
+  - Maintenance requirements
+
+  - Safety and storage needs
+
+
+  Return the data as valid JSON matching the object_analysis schema.'
+description: Categorizes and analyzes objects for inventory management
+variables:
+- object
+- image_data
+output_schema: object_analysis
+version: '1.0'
+created_at: '2025-05-24T18:41:27.590134'
+updated_at: '2025-05-24T18:41:27.590136'

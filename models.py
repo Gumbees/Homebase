@@ -501,6 +501,10 @@ class AIEvaluationQueue(db.Model):
                         break
                     
                     days_ahead += 1
+                    
+                    # Safety limit to prevent infinite loop
+                    if days_ahead > 365:
+                        break
         
         return scheduled_count
 
@@ -784,5 +788,477 @@ class Reminder(db.Model):
             Reminder.priority.desc(),
             Reminder.due_date
         ).all()
+
+# ============================================================================
+# ENTITY MODELS - Information/Administrative Records
+# ============================================================================
+
+class Organization(db.Model):
+    """
+    Organizations are entities that represent business relationships.
+    This replaces the simpler Vendor model with a more comprehensive system
+    for managing any type of organization: vendors, service providers, clients, etc.
+    """
+    __tablename__ = 'organizations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, index=True)
+    organization_type = db.Column(db.String(50), default='vendor', index=True)  # vendor, client, service_provider, etc.
+    data = db.Column(JSONB, nullable=False, default=lambda: {})  # Flexible storage for all org data
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    needs_approval = db.Column(db.Boolean, default=False)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    # invoices = db.relationship('Invoice', backref='organization', lazy='dynamic',
+    #                            primaryjoin="Organization.id == foreign(Invoice.data['organization_id'].astext.cast(Integer))",
+    #                            overlaps="vendor")
+    contacts = db.relationship('OrganizationContact', backref='organization', lazy='dynamic',
+                               cascade="all, delete-orphan")
+    notes = db.relationship('Note', backref='organization', lazy='dynamic')
+    calendar_events = db.relationship('CalendarEvent', backref='organization', lazy='dynamic')
+    
+    def __repr__(self):
+        return f"<Organization {self.name} ({self.organization_type})>"
+    
+    @property
+    def contact_info(self):
+        """Get contact information from data JSON"""
+        return self.data.get('contact_info', {})
+    
+    @property
+    def address(self):
+        """Get address from data JSON"""
+        return self.data.get('address', '')
+    
+    @property
+    def phone(self):
+        """Get phone from data JSON"""
+        return self.data.get('phone', '')
+    
+    @property
+    def email(self):
+        """Get email from data JSON"""
+        return self.data.get('email', '')
+    
+    @property
+    def website(self):
+        """Get website from data JSON"""
+        return self.data.get('website', '')
+    
+    @classmethod
+    def get_or_create(cls, name, organization_type='vendor', **kwargs):
+        """Get an existing organization or create a new one"""
+        org = cls.query.filter_by(name=name).first()
+        if not org:
+            org = cls(name=name, organization_type=organization_type, **kwargs)
+            db.session.add(org)
+            db.session.commit()
+        return org
+
+class OrganizationRelationship(db.Model):
+    """
+    Many-to-many relationships between organizations with labeled relationship types.
+    Supports complex business relationships like parent/subsidiary, partnerships, franchises, etc.
+    """
+    __tablename__ = 'organization_relationships'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    from_organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    to_organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    relationship_type = db.Column(db.String(50), nullable=False, index=True)  # 'parent', 'subsidiary', 'partner', 'franchise', etc.
+    relationship_label = db.Column(db.String(100))  # Custom description like "Parent Company", "Regional Franchise"
+    is_bidirectional = db.Column(db.Boolean, default=False)  # Whether relationship works both ways
+    strength = db.Column(db.Integer, default=5)  # 1-10 strength of relationship
+    relationship_metadata = db.Column(JSONB, default=lambda: {})  # Additional relationship data
+    start_date = db.Column(db.DateTime, nullable=True)  # When relationship started
+    end_date = db.Column(db.DateTime, nullable=True)  # When relationship ended (for historical tracking)
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    from_organization = db.relationship('Organization', foreign_keys=[from_organization_id],
+                                        backref='outgoing_relationships')
+    to_organization = db.relationship('Organization', foreign_keys=[to_organization_id],
+                                      backref='incoming_relationships')
+    
+    # Unique constraint to prevent duplicate relationships
+    __table_args__ = (
+        db.UniqueConstraint('from_organization_id', 'to_organization_id', 'relationship_type', 
+                           name='unique_org_relationship'),
+        db.CheckConstraint('from_organization_id != to_organization_id', 
+                          name='no_self_relationship')
+    )
+    
+    def __repr__(self):
+        return f"<OrgRelationship {self.from_organization.name} -[{self.relationship_type}]-> {self.to_organization.name}>"
+    
+    @property
+    def description(self):
+        """Human-readable description of the relationship"""
+        return self.relationship_label or f"{self.relationship_type.replace('_', ' ').title()}"
+    
+    @classmethod
+    def create_relationship(cls, from_org_id, to_org_id, relationship_type, 
+                           relationship_label=None, is_bidirectional=False, **kwargs):
+        """
+        Create a relationship between two organizations.
+        Optionally creates the reverse relationship if bidirectional.
+        """
+        # Create primary relationship
+        relationship = cls(
+            from_organization_id=from_org_id,
+            to_organization_id=to_org_id,
+            relationship_type=relationship_type,
+            relationship_label=relationship_label,
+            is_bidirectional=is_bidirectional,
+            **kwargs
+        )
+        db.session.add(relationship)
+        
+        # Create reverse relationship if bidirectional
+        if is_bidirectional:
+            # Determine reverse relationship type
+            reverse_type = cls._get_reverse_relationship_type(relationship_type)
+            reverse_label = cls._get_reverse_relationship_label(relationship_label, relationship_type)
+            
+            reverse_relationship = cls(
+                from_organization_id=to_org_id,
+                to_organization_id=from_org_id,
+                relationship_type=reverse_type,
+                relationship_label=reverse_label,
+                is_bidirectional=True,
+                **kwargs
+            )
+            db.session.add(reverse_relationship)
+            
+        db.session.commit()
+        return relationship
+    
+    @staticmethod
+    def _get_reverse_relationship_type(relationship_type):
+        """Get the reverse relationship type for bidirectional relationships"""
+        reverse_mapping = {
+            'parent': 'subsidiary',
+            'subsidiary': 'parent',
+            'partner': 'partner',
+            'franchise': 'franchisor',
+            'franchisor': 'franchise',
+            'supplier': 'customer',
+            'customer': 'supplier',
+            'division': 'parent',
+            'joint_venture': 'joint_venture',
+            'acquisition': 'acquired_by',
+            'acquired_by': 'acquisition'
+        }
+        return reverse_mapping.get(relationship_type, relationship_type)
+    
+    @staticmethod
+    def _get_reverse_relationship_label(original_label, relationship_type):
+        """Generate reverse relationship label"""
+        if original_label:
+            return f"Reverse of: {original_label}"
+        return OrganizationRelationship._get_reverse_relationship_type(relationship_type).replace('_', ' ').title()
+    
+    @classmethod
+    def get_organization_network(cls, org_id, max_depth=3):
+        """
+        Get the complete network of relationships for an organization.
+        Returns a nested structure showing all connected organizations.
+        """
+        visited = set()
+        network = {}
+        
+        def _traverse(current_org_id, depth=0):
+            if depth > max_depth or current_org_id in visited:
+                return {}
+            
+            visited.add(current_org_id)
+            
+            # Get all relationships for this organization
+            outgoing = cls.query.filter_by(from_organization_id=current_org_id, is_active=True).all()
+            incoming = cls.query.filter_by(to_organization_id=current_org_id, is_active=True).all()
+            
+            org_network = {
+                'organization_id': current_org_id,
+                'outgoing_relationships': [],
+                'incoming_relationships': []
+            }
+            
+            # Process outgoing relationships
+            for rel in outgoing:
+                rel_data = {
+                    'relationship_id': rel.id,
+                    'to_organization_id': rel.to_organization_id,
+                    'relationship_type': rel.relationship_type,
+                    'relationship_label': rel.relationship_label,
+                    'strength': rel.strength,
+                    'connected_network': _traverse(rel.to_organization_id, depth + 1)
+                }
+                org_network['outgoing_relationships'].append(rel_data)
+            
+            # Process incoming relationships
+            for rel in incoming:
+                rel_data = {
+                    'relationship_id': rel.id,
+                    'from_organization_id': rel.from_organization_id,
+                    'relationship_type': rel.relationship_type,
+                    'relationship_label': rel.relationship_label,
+                    'strength': rel.strength,
+                    'connected_network': _traverse(rel.from_organization_id, depth + 1)
+                }
+                org_network['incoming_relationships'].append(rel_data)
+            
+            return org_network
+        
+        return _traverse(org_id)
+    
+    @classmethod
+    def get_relationship_types(cls):
+        """Get available relationship types"""
+        return [
+            {'value': 'parent', 'label': 'Parent Company', 'description': 'Parent organization that owns this one'},
+            {'value': 'subsidiary', 'label': 'Subsidiary', 'description': 'Organization owned by this one'},
+            {'value': 'partner', 'label': 'Business Partner', 'description': 'Strategic business partnership'},
+            {'value': 'franchise', 'label': 'Franchise', 'description': 'Franchisee of this organization'},
+            {'value': 'franchisor', 'label': 'Franchisor', 'description': 'Grants franchise rights'},
+            {'value': 'supplier', 'label': 'Supplier', 'description': 'Provides goods or services'},
+            {'value': 'customer', 'label': 'Customer', 'description': 'Receives goods or services'},
+            {'value': 'division', 'label': 'Division', 'description': 'Business division or unit'},
+            {'value': 'joint_venture', 'label': 'Joint Venture', 'description': 'Shared business entity'},
+            {'value': 'acquisition', 'label': 'Acquisition', 'description': 'Organization acquired by this one'},
+            {'value': 'acquired_by', 'label': 'Acquired By', 'description': 'This organization was acquired'},
+            {'value': 'competitor', 'label': 'Competitor', 'description': 'Business competitor'},
+            {'value': 'alliance', 'label': 'Strategic Alliance', 'description': 'Strategic business alliance'}
+        ]
+
+class User(db.Model):
+    """
+    Users are entities that represent system access and digital identity.
+    Users can be linked to People objects to connect digital identity with physical persons.
+    """
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255))  # For future authentication
+    data = db.Column(JSONB, nullable=False, default=lambda: {})  # Profile data, settings, etc.
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    is_admin = db.Column(db.Boolean, default=False)
+    preferences = db.Column(JSONB, default=lambda: {})  # User preferences
+    
+    # Relationships
+    person_mappings = db.relationship('UserPersonMapping', backref='user', lazy='dynamic',
+                                      cascade="all, delete-orphan")
+    notes = db.relationship('Note', backref='user', lazy='dynamic')
+    calendar_events = db.relationship('CalendarEvent', backref='user', lazy='dynamic')
+    collections = db.relationship('Collection', backref='user', lazy='dynamic',
+                                  cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<User {self.username}>"
+    
+    @property
+    def display_name(self):
+        """Get display name from data or fallback to username"""
+        return self.data.get('display_name', self.username)
+    
+    @property
+    def first_name(self):
+        """Get first name from data"""
+        return self.data.get('first_name', '')
+    
+    @property
+    def last_name(self):
+        """Get last name from data"""
+        return self.data.get('last_name', '')
+    
+    @property
+    def primary_person(self):
+        """Get the primary Person object linked to this user"""
+        mapping = self.person_mappings.filter_by(is_primary=True).first()
+        return mapping.person_object if mapping else None
+
+class OrganizationContact(db.Model):
+    """
+    Links Organizations to People objects, representing contacts within organizations.
+    """
+    __tablename__ = 'organization_contacts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    person_object_id = db.Column(db.Integer, db.ForeignKey('objects.id'), nullable=False)
+    contact_type = db.Column(db.String(50), default='primary')  # primary, billing, technical, etc.
+    relationship = db.Column(db.String(100))  # job title, role, etc.
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    person_object = db.relationship('Object', backref='organization_contacts')
+    
+    __table_args__ = (db.UniqueConstraint('organization_id', 'person_object_id', 'contact_type'),)
+    
+    def __repr__(self):
+        return f"<OrganizationContact {self.contact_type}>"
+
+class UserPersonMapping(db.Model):
+    """
+    Links Users to their corresponding People objects.
+    Connects digital identity (User) with physical person (People Object).
+    """
+    __tablename__ = 'user_person_mapping'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    person_object_id = db.Column(db.Integer, db.ForeignKey('objects.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_primary = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    person_object = db.relationship('Object', backref='user_mappings')
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'person_object_id'),)
+    
+    def __repr__(self):
+        return f"<UserPersonMapping User {self.user_id} -> Person {self.person_object_id}>"
+
+class Note(db.Model):
+    """
+    Notes are entities for documentation and comments.
+    Can be attached to Objects, Organizations, or standalone.
+    """
+    __tablename__ = 'notes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    content = db.Column(db.Text)
+    note_type = db.Column(db.String(50), default='general', index=True)  # maintenance, warranty, etc.
+    object_id = db.Column(db.Integer, db.ForeignKey('objects.id'), nullable=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    data = db.Column(JSONB, default=lambda: {})  # Additional metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_private = db.Column(db.Boolean, default=False)
+    
+    # Relationships
+    object = db.relationship('Object', backref='notes')
+    
+    def __repr__(self):
+        return f"<Note {self.title}>"
+
+class CalendarEvent(db.Model):
+    """
+    Calendar events are entities for scheduled activities.
+    Can be linked to Objects (maintenance) or Organizations (meetings).
+    """
+    __tablename__ = 'calendar_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    event_type = db.Column(db.String(50), default='maintenance', index=True)
+    start_time = db.Column(db.DateTime, nullable=False, index=True)  # Matches existing DB schema
+    end_time = db.Column(db.DateTime, nullable=True)
+    object_id = db.Column(db.Integer, db.ForeignKey('objects.id'), nullable=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    data = db.Column(JSONB, default=lambda: {})  # Matches existing DB schema (not event_metadata)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_completed = db.Column(db.Boolean, default=False, index=True)
+    
+    # Relationships
+    object = db.relationship('Object', backref='calendar_events')
+    
+    def __repr__(self):
+        return f"<CalendarEvent {self.title}>"
+    
+    # Property aliases for backward compatibility
+    @property
+    def event_date(self):
+        """Alias for start_time for backward compatibility"""
+        return self.start_time
+    
+    @event_date.setter
+    def event_date(self, value):
+        """Setter for event_date that updates start_time"""
+        self.start_time = value
+    
+    @property
+    def event_metadata(self):
+        """Alias for data for backward compatibility"""
+        return self.data
+    
+    @event_metadata.setter
+    def event_metadata(self, value):
+        """Setter for event_metadata that updates data"""
+        self.data = value
+    
+    @property
+    def location(self):
+        """Get location from data JSON"""
+        return self.data.get('location', '') if self.data else ''
+    
+    @location.setter
+    def location(self, value):
+        """Set location in data JSON"""
+        if not self.data:
+            self.data = {}
+        self.data['location'] = value
+
+# Association table for collection-object relationships
+collection_objects = db.Table('collection_objects',
+    db.Column('id', db.Integer, primary_key=True),
+    db.Column('collection_id', db.Integer, db.ForeignKey('collections.id')),
+    db.Column('object_id', db.Integer, db.ForeignKey('objects.id')),
+    db.Column('added_at', db.DateTime, default=datetime.utcnow),
+    db.UniqueConstraint('collection_id', 'object_id')
+)
+
+class Collection(db.Model):
+    """
+    Collections are entities for organizing and grouping Objects.
+    Users can create custom collections like "Kitchen Equipment" or "Office Supplies".
+    """
+    __tablename__ = 'collections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    collection_type = db.Column(db.String(50), default='custom', index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    data = db.Column(JSONB, default=lambda: {})  # Collection metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_public = db.Column(db.Boolean, default=False)
+    
+    # Relationships
+    objects = db.relationship('Object', secondary=collection_objects,
+                              lazy='dynamic', backref=db.backref('collections', lazy='dynamic'))
+    
+    def __repr__(self):
+        return f"<Collection {self.name}>"
+    
+    def add_object(self, obj):
+        """Add an object to this collection"""
+        if not self.has_object(obj):
+            self.objects.append(obj)
+    
+    def remove_object(self, obj):
+        """Remove an object from this collection"""
+        if self.has_object(obj):
+            self.objects.remove(obj)
+    
+    def has_object(self, obj):
+        """Check if object is in this collection"""
+        return self.objects.filter(collection_objects.c.object_id == obj.id).count() > 0
 
 

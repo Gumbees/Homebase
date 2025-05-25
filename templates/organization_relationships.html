@@ -1,0 +1,456 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ organization.name }} - Relationships - Homebase{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-sitemap me-2"></i>Organization Relationships</h2>
+                    <h4 class="text-muted mb-0">{{ organization.name }}</h4>
+                    <p class="text-muted">Manage business relationships and organizational networks</p>
+                </div>
+                <div>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addRelationshipModal">
+                        <i class="fas fa-plus me-2"></i>Add Relationship
+                    </button>
+                    <a href="{{ url_for('edit_organization', org_id=organization.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit me-2"></i>Edit Organization
+                    </a>
+                </div>
+            </div>
+
+            <!-- Relationship Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-arrow-right me-2"></i>{{ outgoing_relationships|length }}</h5>
+                            <p class="mb-0">Outgoing Relationships</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-arrow-left me-2"></i>{{ incoming_relationships|length }}</h5>
+                            <p class="mb-0">Incoming Relationships</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5><i class="fas fa-network-wired me-2"></i>{{ (outgoing_relationships|length) + (incoming_relationships|length) }}</h5>
+                            <p class="mb-0">Total Connections</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-dark">
+                        <div class="card-body">
+                            <h5><i class="fas fa-exchange-alt me-2"></i>{{ outgoing_relationships|selectattr('is_bidirectional')|list|length }}</h5>
+                            <p class="mb-0">Bidirectional</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Visualization Button -->
+            <div class="text-center mb-4">
+                <button class="btn btn-outline-info" id="showNetworkBtn">
+                    <i class="fas fa-project-diagram me-2"></i>View Organization Network
+                </button>
+            </div>
+
+            <!-- Network Visualization Container -->
+            <div id="networkContainer" class="card mb-4" style="display: none;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-project-diagram me-2"></i>Organization Network
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="networkVisualization" style="min-height: 400px;">
+                        <div class="text-center py-5">
+                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                            <p class="text-muted mt-2">Loading organization network...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Outgoing Relationships -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-arrow-right me-2"></i>Outgoing Relationships
+                            </h5>
+                            <small>{{ organization.name }} relates to these organizations</small>
+                        </div>
+                        <div class="card-body">
+                            {% if outgoing_relationships %}
+                                {% for relationship in outgoing_relationships %}
+                                <div class="relationship-item border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                <i class="fas fa-building text-primary me-2"></i>
+                                                {{ relationship.to_organization.name }}
+                                            </h6>
+                                            <div class="mb-2">
+                                                <span class="badge bg-primary">{{ relationship.relationship_type.replace('_', ' ').title() }}</span>
+                                                {% if relationship.is_bidirectional %}
+                                                    <span class="badge bg-success ms-1">Bidirectional</span>
+                                                {% endif %}
+                                                {% if relationship.strength %}
+                                                    <span class="badge bg-info ms-1">Strength: {{ relationship.strength }}/10</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if relationship.relationship_label %}
+                                                <p class="text-muted mb-1">
+                                                    <i class="fas fa-tag me-1"></i>{{ relationship.relationship_label }}
+                                                </p>
+                                            {% endif %}
+                                            {% if relationship.start_date %}
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar me-1"></i>
+                                                    Since {{ relationship.start_date.strftime('%Y-%m-%d') }}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            <form method="post" action="{{ url_for('delete_organization_relationship', relationship_id=relationship.id) }}" 
+                                                  style="display: inline;" 
+                                                  onsubmit="return confirm('Are you sure you want to delete this relationship?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-arrow-right fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">No outgoing relationships</p>
+                                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addRelationshipModal">
+                                        <i class="fas fa-plus me-2"></i>Add First Relationship
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Incoming Relationships -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-arrow-left me-2"></i>Incoming Relationships
+                            </h5>
+                            <small>These organizations relate to {{ organization.name }}</small>
+                        </div>
+                        <div class="card-body">
+                            {% if incoming_relationships %}
+                                {% for relationship in incoming_relationships %}
+                                <div class="relationship-item border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                <i class="fas fa-building text-success me-2"></i>
+                                                {{ relationship.from_organization.name }}
+                                            </h6>
+                                            <div class="mb-2">
+                                                <span class="badge bg-success">{{ relationship.relationship_type.replace('_', ' ').title() }}</span>
+                                                {% if relationship.is_bidirectional %}
+                                                    <span class="badge bg-success ms-1">Bidirectional</span>
+                                                {% endif %}
+                                                {% if relationship.strength %}
+                                                    <span class="badge bg-info ms-1">Strength: {{ relationship.strength }}/10</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if relationship.relationship_label %}
+                                                <p class="text-muted mb-1">
+                                                    <i class="fas fa-tag me-1"></i>{{ relationship.relationship_label }}
+                                                </p>
+                                            {% endif %}
+                                            {% if relationship.start_date %}
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar me-1"></i>
+                                                    Since {{ relationship.start_date.strftime('%Y-%m-%d') }}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            <small class="text-muted">Managed by<br>{{ relationship.from_organization.name }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-arrow-left fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">No incoming relationships</p>
+                                    <small class="text-muted">Incoming relationships are created by other organizations</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Relationship Modal -->
+<div class="modal fade" id="addRelationshipModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>Add Organization Relationship
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('create_organization_relationship') }}">
+                <input type="hidden" name="from_organization_id" value="{{ organization.id }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="to_organization_id" class="form-label">
+                                <i class="fas fa-building me-1"></i>Related Organization
+                            </label>
+                            <select class="form-select" id="to_organization_id" name="to_organization_id" required>
+                                <option value="">Select organization...</option>
+                                {% for org in other_organizations %}
+                                <option value="{{ org.id }}">{{ org.name }} ({{ org.organization_type }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="relationship_type" class="form-label">
+                                <i class="fas fa-tags me-1"></i>Relationship Type
+                            </label>
+                            <select class="form-select" id="relationship_type" name="relationship_type" required>
+                                <option value="">Select type...</option>
+                                {% for rel_type in relationship_types %}
+                                <option value="{{ rel_type.value }}" title="{{ rel_type.description }}">
+                                    {{ rel_type.label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="relationship_label" class="form-label">
+                            <i class="fas fa-tag me-1"></i>Custom Label (Optional)
+                        </label>
+                        <input type="text" class="form-control" id="relationship_label" name="relationship_label" 
+                               placeholder="e.g., 'Parent Company', 'Regional Partner', 'Main Supplier'">
+                        <div class="form-text">
+                            Provide a custom description for this specific relationship
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="strength" class="form-label">
+                                <i class="fas fa-signal me-1"></i>Relationship Strength
+                            </label>
+                            <select class="form-select" id="strength" name="strength">
+                                <option value="1">1 - Minimal</option>
+                                <option value="2">2 - Low</option>
+                                <option value="3">3 - Moderate</option>
+                                <option value="4">4 - Significant</option>
+                                <option value="5" selected>5 - Important</option>
+                                <option value="6">6 - Strong</option>
+                                <option value="7">7 - Very Strong</option>
+                                <option value="8">8 - Critical</option>
+                                <option value="9">9 - Essential</option>
+                                <option value="10">10 - Inseparable</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="start_date" class="form-label">
+                                <i class="fas fa-calendar me-1"></i>Start Date (Optional)
+                            </label>
+                            <input type="date" class="form-control" id="start_date" name="start_date">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="is_bidirectional" name="is_bidirectional" value="true">
+                                <label class="form-check-label" for="is_bidirectional">
+                                    <i class="fas fa-exchange-alt me-1"></i>Bidirectional Relationship
+                                </label>
+                                <div class="form-text">
+                                    Creates the reverse relationship automatically
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">
+                            <i class="fas fa-sticky-note me-1"></i>Notes (Optional)
+                        </label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="Additional notes about this relationship..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Create Relationship
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Show/hide network visualization
+document.getElementById('showNetworkBtn').addEventListener('click', function() {
+    const container = document.getElementById('networkContainer');
+    const btn = this;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.innerHTML = '<i class="fas fa-eye-slash me-2"></i>Hide Organization Network';
+        loadNetworkVisualization();
+    } else {
+        container.style.display = 'none';
+        btn.innerHTML = '<i class="fas fa-project-diagram me-2"></i>View Organization Network';
+    }
+});
+
+function loadNetworkVisualization() {
+    const visualizationContainer = document.getElementById('networkVisualization');
+    
+    // Fetch network data
+    fetch(`/api/organization-network/{{ organization.id }}?max_depth=2`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayNetwork(data.network);
+            } else {
+                showNetworkError(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading network:', error);
+            showNetworkError('Failed to load network data');
+        });
+}
+
+function displayNetwork(networkData) {
+    const container = document.getElementById('networkVisualization');
+    
+    // Simple text-based network display (can be enhanced with D3.js or similar)
+    let html = '<div class="network-display">';
+    
+    if (networkData && networkData.organization_id) {
+        html += `<div class="text-center mb-4">`;
+        html += `<h5 class="text-primary"><i class="fas fa-building me-2"></i>{{ organization.name }}</h5>`;
+        html += `</div>`;
+        
+        // Outgoing relationships
+        if (networkData.outgoing_relationships && networkData.outgoing_relationships.length > 0) {
+            html += `<div class="mb-4">`;
+            html += `<h6><i class="fas fa-arrow-right me-2 text-primary"></i>Connected Organizations:</h6>`;
+            networkData.outgoing_relationships.forEach(rel => {
+                html += `<div class="ms-3 mb-2">`;
+                html += `<i class="fas fa-angle-right me-2"></i>`;
+                html += `<strong>${rel.relationship_type.replace('_', ' ').toUpperCase()}</strong>: `;
+                html += `Organization #${rel.to_organization_id}`;
+                if (rel.relationship_label) {
+                    html += ` <small class="text-muted">(${rel.relationship_label})</small>`;
+                }
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+        
+        // Incoming relationships
+        if (networkData.incoming_relationships && networkData.incoming_relationships.length > 0) {
+            html += `<div class="mb-4">`;
+            html += `<h6><i class="fas fa-arrow-left me-2 text-success"></i>Connected From:</h6>`;
+            networkData.incoming_relationships.forEach(rel => {
+                html += `<div class="ms-3 mb-2">`;
+                html += `<i class="fas fa-angle-left me-2"></i>`;
+                html += `<strong>${rel.relationship_type.replace('_', ' ').toUpperCase()}</strong>: `;
+                html += `Organization #${rel.from_organization_id}`;
+                if (rel.relationship_label) {
+                    html += ` <small class="text-muted">(${rel.relationship_label})</small>`;
+                }
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+        
+        if ((!networkData.outgoing_relationships || networkData.outgoing_relationships.length === 0) &&
+            (!networkData.incoming_relationships || networkData.incoming_relationships.length === 0)) {
+            html += `<div class="text-center text-muted py-4">`;
+            html += `<i class="fas fa-info-circle me-2"></i>No network connections found`;
+            html += `</div>`;
+        }
+    } else {
+        html += `<div class="text-center text-muted py-4">`;
+        html += `<i class="fas fa-exclamation-triangle me-2"></i>No network data available`;
+        html += `</div>`;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function showNetworkError(error) {
+    const container = document.getElementById('networkVisualization');
+    container.innerHTML = `
+        <div class="text-center text-danger py-4">
+            <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+            <p>Error loading network visualization</p>
+            <small>${error}</small>
+        </div>
+    `;
+}
+
+// Auto-update relationship label based on type selection
+document.getElementById('relationship_type').addEventListener('change', function() {
+    const labelInput = document.getElementById('relationship_label');
+    const selectedOption = this.options[this.selectedIndex];
+    
+    if (selectedOption.value && !labelInput.value) {
+        // Auto-suggest label based on type
+        const type = selectedOption.text;
+        labelInput.placeholder = `e.g., "${type} of {{ organization.name }}"`;
+    }
+});
+
+// Form submission feedback
+document.querySelector('#addRelationshipModal form').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Relationship...';
+    
+    // Re-enable button after timeout (in case of errors)
+    setTimeout(function() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }, 10000);
+});
+</script>
+{% endblock %} 

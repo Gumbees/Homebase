@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Organization - Homebase{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-building me-2"></i>Edit Organization: {{ organization.name }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="contact_email" class="form-label">
+                                    <i class="fas fa-envelope me-1"></i>Email Address
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       id="contact_email" 
+                                       name="contact_email" 
+                                       value="{{ organization.contact_info.email if organization.contact_info and organization.contact_info.email else '' }}"
+                                       placeholder="contact@organization.com">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="contact_phone" class="form-label">
+                                    <i class="fas fa-phone me-1"></i>Phone Number
+                                </label>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="contact_phone" 
+                                       name="contact_phone" 
+                                       value="{{ organization.contact_info.phone if organization.contact_info and organization.contact_info.phone else '' }}"
+                                       placeholder="(555) 123-4567">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="website" class="form-label">
+                                <i class="fas fa-globe me-1"></i>Website
+                            </label>
+                            <input type="url" 
+                                   class="form-control" 
+                                   id="website" 
+                                   name="website" 
+                                   value="{{ organization.contact_info.website if organization.contact_info and organization.contact_info.website else '' }}"
+                                   placeholder="https://organization.com">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="address" class="form-label">
+                                <i class="fas fa-map-marker-alt me-1"></i>Address
+                            </label>
+                            <textarea class="form-control" 
+                                      id="address" 
+                                      name="address" 
+                                      rows="3" 
+                                      placeholder="Street address, city, state, zip">{{ organization.contact_info.address if organization.contact_info and organization.contact_info.address else '' }}</textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="business_type" class="form-label">
+                                <i class="fas fa-tag me-1"></i>Business Type
+                            </label>
+                            <select class="form-select" id="business_type" name="business_type">
+                                <option value="">Select type...</option>
+                                <option value="retail" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'retail' else '' }}>Retail Store</option>
+                                <option value="restaurant" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'restaurant' else '' }}>Restaurant</option>
+                                <option value="grocery" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'grocery' else '' }}>Grocery Store</option>
+                                <option value="gas_station" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'gas_station' else '' }}>Gas Station</option>
+                                <option value="online" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'online' else '' }}>Online Store</option>
+                                <option value="service" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'service' else '' }}>Service Provider</option>
+                                <option value="utility" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'utility' else '' }}>Utility Company</option>
+                                <option value="other" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'other' else '' }}>Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="notes" class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>Notes
+                            </label>
+                            <textarea class="form-control" 
+                                      id="notes" 
+                                      name="notes" 
+                                      rows="4" 
+                                      placeholder="Any additional notes about this organization...">{{ organization.metadata.notes if organization.metadata and organization.metadata.get('notes') else '' }}</textarea>
+                        </div>
+                        
+                        <!-- Enhanced: Vendor Names Management Section -->
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-link me-1"></i>Linked Vendor Names
+                            </label>
+                            <div class="border rounded p-3 bg-light">
+                                <div class="mb-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Link vendor names that belong to this organization (e.g., different stores, online vs physical, abbreviations)
+                                    </small>
+                                </div>
+                                
+                                <!-- Currently Linked Names -->
+                                {% if organization.metadata and organization.metadata.get('linked_vendor_names') %}
+                                <div class="mb-3">
+                                    <strong>Currently Linked Names:</strong>
+                                    <div class="mt-2">
+                                        {% for vendor_name in organization.metadata.linked_vendor_names %}
+                                        <span class="badge bg-success me-2 mb-1 p-2">
+                                            <i class="fas fa-link me-1"></i>{{ vendor_name }}
+                                            <button type="button" class="btn-close btn-close-white ms-2" 
+                                                    onclick="removeLinkedVendor('{{ vendor_name }}')" 
+                                                    style="font-size: 0.7em;"
+                                                    title="Remove link"></button>
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Vendor Names Input -->
+                                <div class="mb-3">
+                                    <label for="linked_vendor_names" class="form-label">Add/Edit Linked Vendor Names</label>
+                                    <textarea class="form-control" 
+                                              id="linked_vendor_names" 
+                                              name="linked_vendor_names" 
+                                              rows="3" 
+                                              placeholder="Enter vendor names separated by commas (e.g., Amazon, Amazon.com, AWS)">{% if organization.metadata and organization.metadata.get('linked_vendor_names') %}{{ organization.metadata.linked_vendor_names|join(', ') }}{% endif %}</textarea>
+                                    <div class="form-text">
+                                        Enter vendor names separated by commas. These will be linked to this organization.
+                                    </div>
+                                </div>
+                                
+                                <!-- Available Vendor Names -->
+                                {% if available_vendor_names %}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>Available Vendor Names:</strong>
+                                        <small class="text-muted">{{ available_vendor_names|length }} available</small>
+                                    </div>
+                                    <div class="available-vendors-list" style="max-height: 200px; overflow-y: auto;">
+                                        {% for vendor in available_vendor_names[:10] %}
+                                        <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                                            <span>{{ vendor.name }}</span>
+                                            <div>
+                                                <span class="badge bg-primary me-2">{{ vendor.receipt_count }} receipts</span>
+                                                <button type="button" class="btn btn-sm btn-outline-success" 
+                                                        onclick="addVendorName('{{ vendor.name }}')">
+                                                    <i class="fas fa-plus me-1"></i>Link
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                        {% if available_vendor_names|length > 10 %}
+                                        <div class="text-center py-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-ellipsis-h me-1"></i>
+                                                and {{ available_vendor_names|length - 10 }} more vendor names available
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        All available vendor names are already linked to organizations
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('vendors') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Vendors
+                            </a>
+                            <div>
+                                <a href="{{ url_for('organization_relationships', org_id=organization.id) }}" class="btn btn-info me-2">
+                                    <i class="fas fa-sitemap me-2"></i>Manage Relationships
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Organization Info -->
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Organization Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Organization Type:</strong> {{ organization.organization_type.title() if organization.organization_type else 'Not specified' }}</p>
+                            <p><strong>Status:</strong> 
+                                {% if organization.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactive</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            {% if organization.metadata and organization.metadata.get('promoted_from_metadata') %}
+                                <p><strong>Source:</strong> <span class="badge bg-info">Promoted from Metadata</span></p>
+                                {% if organization.metadata.get('promoted_at') %}
+                                    <p><strong>Promoted:</strong> {{ organization.metadata.promoted_at[:10] }}</p>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if organization.created_at %}
+                                <p><strong>Created:</strong> {{ organization.created_at.strftime('%Y-%m-%d') }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-format phone numbers
+document.getElementById('contact_phone').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length >= 6) {
+        value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+    } else if (value.length >= 3) {
+        value = value.replace(/(\d{3})(\d{0,3})/, '($1) $2');
+    }
+    e.target.value = value;
+});
+
+// Auto-add https:// to website if needed
+document.getElementById('website').addEventListener('blur', function(e) {
+    let value = e.target.value.trim();
+    if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+        e.target.value = 'https://' + value;
+    }
+});
+
+// Auto-resize textareas
+document.querySelectorAll('textarea').forEach(function(textarea) {
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = this.scrollHeight + 'px';
+    });
+});
+
+// Enhanced: Vendor Names Management Functions
+function addVendorName(vendorName) {
+    const textarea = document.getElementById('linked_vendor_names');
+    let currentValue = textarea.value.trim();
+    
+    // Check if vendor name already exists
+    const currentNames = currentValue ? currentValue.split(',').map(name => name.trim()) : [];
+    if (currentNames.includes(vendorName)) {
+        alert('This vendor name is already linked!');
+        return;
+    }
+    
+    // Add the vendor name
+    if (currentValue) {
+        textarea.value = currentValue + ', ' + vendorName;
+    } else {
+        textarea.value = vendorName;
+    }
+    
+    // Trigger resize
+    textarea.dispatchEvent(new Event('input'));
+    
+    // Show feedback
+    showFeedback(`Added "${vendorName}" to linked vendor names`, 'success');
+    
+    // Optionally hide the add button for this vendor
+    event.target.disabled = true;
+    event.target.innerHTML = '<i class="fas fa-check me-1"></i>Added';
+    event.target.classList.remove('btn-outline-success');
+    event.target.classList.add('btn-success');
+}
+
+function removeLinkedVendor(vendorName) {
+    const textarea = document.getElementById('linked_vendor_names');
+    let currentValue = textarea.value.trim();
+    
+    if (!currentValue) return;
+    
+    // Remove the vendor name from the list
+    const currentNames = currentValue.split(',').map(name => name.trim());
+    const filteredNames = currentNames.filter(name => name !== vendorName);
+    
+    textarea.value = filteredNames.join(', ');
+    
+    // Trigger resize
+    textarea.dispatchEvent(new Event('input'));
+    
+    // Show feedback
+    showFeedback(`Removed "${vendorName}" from linked vendor names`, 'info');
+    
+    // Re-enable any corresponding add buttons
+    const availableVendorButtons = document.querySelectorAll('button[onclick*="' + vendorName + '"]');
+    availableVendorButtons.forEach(button => {
+        if (button.innerHTML.includes('Added')) {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-plus me-1"></i>Link';
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-success');
+        }
+    });
+}
+
+function showFeedback(message, type) {
+    // Create and show a temporary alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at the top of the form
+    const form = document.querySelector('form');
+    form.insertBefore(alertDiv, form.firstChild);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+
+// Enhanced form submission feedback
+document.querySelector('form').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    // Get linked vendor names count
+    const linkedNamesValue = document.getElementById('linked_vendor_names').value.trim();
+    const linkedNamesCount = linkedNamesValue ? linkedNamesValue.split(',').length : 0;
+    
+    // Update button text
+    submitBtn.disabled = true;
+    if (linkedNamesCount > 0) {
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Saving with ${linkedNamesCount} linked names...`;
+    } else {
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving organization...';
+    }
+    
+    // Re-enable button after timeout (in case of errors)
+    setTimeout(function() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }, 10000);
+});
+
+// Initialize: Disable add buttons for already linked vendors
+document.addEventListener('DOMContentLoaded', function() {
+    const linkedNamesValue = document.getElementById('linked_vendor_names').value.trim();
+    if (linkedNamesValue) {
+        const linkedNames = linkedNamesValue.split(',').map(name => name.trim());
+        
+        // Disable add buttons for vendors that are already linked
+        linkedNames.forEach(vendorName => {
+            const buttons = document.querySelectorAll('button[onclick*="' + vendorName + '"]');
+            buttons.forEach(button => {
+                if (button.innerHTML.includes('Link')) {
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-check me-1"></i>Linked';
+                    button.classList.remove('btn-outline-success');
+                    button.classList.add('btn-secondary');
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %} 

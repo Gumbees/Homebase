@@ -24,14 +24,14 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def convert_pdf_to_image(pdf_data):
     """
-    Convert the first page of a PDF to an image.
-    First tries pdf2image with poppler, falls back to PyPDF2 with PIL.
+    Convert ALL pages of a PDF to a single concatenated image.
+    This ensures multi-page documents (like email receipts) are fully analyzed.
     
     Args:
         pdf_data: Binary PDF data
         
     Returns:
-        bytes: JPEG image data of the first page
+        bytes: JPEG image data of all pages concatenated vertically
     """
     try:
         # Try with pdf2image first (better quality)
@@ -44,11 +44,10 @@ def convert_pdf_to_image(pdf_data):
             logger.info(f"Saved PDF to temporary file: {temp_pdf_path}")
             
             try:
-                # Convert the first page of the PDF to an image
+                # Convert ALL pages of the PDF to images
+                logger.info("Converting all pages of PDF to images for comprehensive analysis")
                 images = pdf2image.convert_from_path(
                     temp_pdf_path, 
-                    first_page=1, 
-                    last_page=1,
                     dpi=300  # Higher DPI for better quality
                 )
                 
@@ -56,8 +55,40 @@ def convert_pdf_to_image(pdf_data):
                 if not images or len(images) == 0:
                     raise ValueError("Could not convert PDF to image - no images returned")
                 
-                # Get the first page as an image
-                first_page = images[0]
+                logger.info(f"Successfully converted {len(images)} pages from PDF")
+                
+                # If only one page, use it directly
+                if len(images) == 1:
+                    first_page = images[0]
+                else:
+                    # Concatenate all pages vertically into one long image
+                    logger.info(f"Concatenating {len(images)} pages into single image for analysis")
+                    
+                    # Calculate total height and max width
+                    total_height = sum(img.height for img in images)
+                    max_width = max(img.width for img in images)
+                    
+                    # Create new image with combined dimensions
+                    combined_image = Image.new('RGB', (max_width, total_height), (255, 255, 255))
+                    
+                    # Paste each page
+                    y_offset = 0
+                    for img in images:
+                        # Center each page if it's narrower than max_width
+                        x_offset = (max_width - img.width) // 2 if img.width < max_width else 0
+                        combined_image.paste(img, (x_offset, y_offset))
+                        y_offset += img.height
+                        
+                        # Add a small gap between pages for clarity
+                        if y_offset < total_height:  # Not the last page
+                            # Draw a light gray line to separate pages
+                            for x in range(max_width):
+                                for gap_y in range(min(10, total_height - y_offset)):
+                                    combined_image.putpixel((x, y_offset + gap_y), (240, 240, 240))
+                            y_offset += min(10, total_height - y_offset)
+                    
+                    first_page = combined_image
+                    logger.info(f"Created combined image: {max_width}x{total_height} pixels")
                 
                 # Save the image to a buffer in JPEG format
                 buffer = io.BytesIO()
@@ -70,7 +101,7 @@ def convert_pdf_to_image(pdf_data):
                 # Clean up the temporary file
                 os.unlink(temp_pdf_path)
                 
-                logger.info(f"Successfully converted PDF to JPEG image using pdf2image")
+                logger.info(f"Successfully converted PDF ({len(images)} pages) to JPEG image using pdf2image")
                 return image_data
                 
             except Exception as e:
@@ -87,23 +118,38 @@ def convert_pdf_to_image(pdf_data):
         if len(pdf_reader.pages) == 0:
             raise ValueError("PDF has no pages")
         
-        # Get the first page
-        xObject = pdf_reader.pages[0]
-        
-        # Check if it has XObjects (images)
-        if not hasattr(xObject, '/Resources') or '/XObject' not in xObject['/Resources']:
-            raise ValueError("PDF page has no images")
-        
-        # Create a blank white image as a fallback
-        width, height = 2000, 2800  # Letter size at 300 DPI
+        # Create a larger blank white image as a fallback for multi-page documents
+        width, height = 2000, 2800 * max(1, len(pdf_reader.pages))  # Scale height by page count
         image = Image.new('RGB', (width, height), (255, 255, 255))
+        
+        # Add some text indicating this is a multi-page document
+        if len(pdf_reader.pages) > 1:
+            try:
+                from PIL import ImageDraw, ImageFont
+                draw = ImageDraw.Draw(image)
+                # Try to use a default font
+                try:
+                    font = ImageFont.load_default()
+                except:
+                    font = None
+                
+                text = f"Multi-page PDF ({len(pdf_reader.pages)} pages) - Fallback conversion"
+                if font:
+                    draw.text((50, 50), text, fill=(100, 100, 100), font=font)
+                else:
+                    # Simple text without font
+                    draw.text((50, 50), text, fill=(100, 100, 100))
+                    
+                logger.info(f"Created fallback image for {len(pdf_reader.pages)}-page PDF")
+            except:
+                pass  # If text drawing fails, just use blank image
         
         # Save the image to a buffer in JPEG format
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG', quality=90)
         buffer.seek(0)
         
-        logger.info("Converted PDF to blank image with PyPDF2 fallback")
+        logger.info(f"Converted {len(pdf_reader.pages)}-page PDF to blank image with PyPDF2 fallback")
         return buffer.getvalue()
         
     except Exception as e:
