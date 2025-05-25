@@ -47,6 +47,16 @@
                                             title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    {% if receipt.attachments|length == 0 %}
+                                    <button class="btn btn-sm btn-outline-success add-attachment-btn" 
+                                            data-receipt-id="{{ receipt.id }}"
+                                            data-receipt-name="{{ receipt.invoice_number }}"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#addAttachmentModal"
+                                            title="Add Attachment">
+                                        <i class="fas fa-paperclip"></i>
+                                    </button>
+                                    {% endif %}
                                     {% if receipt.data.get('ai_processed') %}
                                     <a href="{{ url_for('ai_queue') }}" class="btn btn-sm btn-outline-primary" title="View in AI Queue">
                                         <i class="fas fa-brain"></i>
@@ -262,6 +272,110 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-trash me-2"></i>Delete Receipt
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Attachment Modal -->
+<div class="modal fade" id="addAttachmentModal" tabindex="-1" aria-labelledby="addAttachmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAttachmentModalLabel">
+                    <i class="fas fa-paperclip me-2"></i>Add Attachment to Receipt
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addAttachmentForm" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You are adding an attachment to receipt: <strong id="attachmentReceiptName"></strong>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="attachment_file" class="form-label">Select File</label>
+                        <input type="file" class="form-control" id="attachment_file" name="attachment_file" 
+                               accept="image/*,.pdf" required>
+                        <div class="form-text">
+                            Supported formats: JPG, PNG, GIF, PDF (Max size: 16MB)
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Capture Option -->
+                    <div class="mb-3">
+                        <label class="form-label">Or capture with camera</label>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="capturePhotoAttachmentBtn">
+                                <i class="fas fa-camera me-2"></i> Use Camera
+                                <small class="d-block">Works on mobile phones and computers with webcams</small>
+                            </button>
+                            <button type="button" class="btn btn-outline-info d-md-none" id="capturePhotoMobileAttachmentBtn">
+                                <i class="fas fa-mobile-alt me-2"></i> Use Mobile Camera
+                                <small class="d-block">Optimized for mobile devices</small>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Live Camera Preview Area -->
+                    <div id="cameraAttachmentArea" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Camera Preview</label>
+                            <div class="border rounded p-2 text-center bg-dark position-relative">
+                                <video id="cameraAttachmentVideo" class="img-fluid" autoplay muted playsinline style="max-height: 400px;"></video>
+                                <canvas id="captureAttachmentCanvas" class="d-none"></canvas>
+                                
+                                <!-- Camera overlay for receipt guidance -->
+                                <div id="receiptAttachmentGuide" class="position-absolute" style="top: 20%; left: 10%; right: 10%; bottom: 20%; border: 2px dashed #28a745; border-radius: 8px; pointer-events: none;">
+                                    <div class="position-absolute top-50 start-50 translate-middle text-white bg-dark bg-opacity-75 px-2 py-1 rounded">
+                                        <small>Position receipt within the green border</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" id="cancelCameraAttachmentBtn">
+                                <i class="fas fa-times me-1"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-success" id="takePictureAttachmentBtn">
+                                <i class="fas fa-camera me-1"></i> Take Picture
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Captured Photo Preview Area -->
+                    <div id="capturedPhotoAttachmentArea" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Captured Photo</label>
+                            <div class="border rounded p-2 text-center">
+                                <img id="capturedAttachmentPhoto" class="img-fluid" style="max-height: 300px;" alt="Captured receipt">
+                            </div>
+                        </div>
+                        <div class="mb-3 d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" id="retakePictureAttachmentBtn">
+                                <i class="fas fa-redo me-1"></i> Retake
+                            </button>
+                            <button type="button" class="btn btn-primary" id="useCapturedPhotoAttachmentBtn">
+                                <i class="fas fa-check me-1"></i> Use This Photo
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Note:</strong> This will add an attachment to an existing receipt. 
+                            The image will not be processed by AI for data extraction.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload me-1"></i>Upload Attachment
                     </button>
                 </div>
             </form>
@@ -725,28 +839,82 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const isPdf = attachment.file_type && attachment.file_type.includes('pdf');
                                 const isImage = attachment.file_type && attachment.file_type.includes('image');
                                 
-                                modalContent += `
-                                    <div class="col-md-6 mb-3">
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <div class="mb-2">
-                                                    <i class="fas fa-${isPdf ? 'file-pdf' : 'image'} fa-2x text-${isPdf ? 'danger' : 'primary'}"></i>
-                                                </div>
-                                                <h6 class="card-title">${attachment.filename}</h6>
-                                                <small class="text-muted">${attachment.file_type || 'Unknown type'}</small>
-                                                <br>
-                                                <small class="text-muted">
-                                                    ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown date'}
-                                                </small>
-                                                <div class="mt-2">
-                                                    <a href="/view-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-primary">
-                                                        <i class="fas fa-eye me-1"></i>View ${isPdf ? 'PDF' : 'Image'}
-                                                    </a>
+                                if (isPdf) {
+                                    // For PDFs, show icon card with view button
+                                    modalContent += `
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <div class="mb-2">
+                                                        <i class="fas fa-file-pdf fa-2x text-danger"></i>
+                                                    </div>
+                                                    <h6 class="card-title">${attachment.filename}</h6>
+                                                    <small class="text-muted">${attachment.file_type || 'Unknown type'}</small>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown date'}
+                                                    </small>
+                                                    <div class="mt-2">
+                                                        <a href="/view-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-eye me-1"></i>View PDF
+                                                        </a>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                `;
+                                    `;
+                                } else if (isImage && attachment.file_data_b64) {
+                                    // For images, show the actual image inline
+                                    modalContent += `
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <h6 class="card-title mb-3">${attachment.filename}</h6>
+                                                    <img src="data:${attachment.file_type};base64,${attachment.file_data_b64}" 
+                                                         class="img-fluid border rounded mb-2" 
+                                                         alt="Receipt Image" 
+                                                         style="max-height: 300px; cursor: pointer;"
+                                                         onclick="window.open('/view-attachment/${attachment.id}', '_blank')">
+                                                    <br>
+                                                    <small class="text-muted">${attachment.file_type || 'Unknown type'}</small>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown date'}
+                                                    </small>
+                                                    <div class="mt-2">
+                                                        <a href="/view-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-expand me-1"></i>View Full Size
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                } else {
+                                    // Fallback for other file types
+                                    modalContent += `
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <div class="mb-2">
+                                                        <i class="fas fa-file fa-2x text-secondary"></i>
+                                                    </div>
+                                                    <h6 class="card-title">${attachment.filename}</h6>
+                                                    <small class="text-muted">${attachment.file_type || 'Unknown type'}</small>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown date'}
+                                                    </small>
+                                                    <div class="mt-2">
+                                                        <a href="/view-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-eye me-1"></i>View File
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }
                             });
                             
                             modalContent += `
@@ -992,6 +1160,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     `;
                 });
+        });
+    });
+    
+    // Setup for Add Attachment buttons
+    document.querySelectorAll('.add-attachment-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            const receiptName = this.getAttribute('data-receipt-name');
+            
+            // Set receipt info in modal
+            document.getElementById('attachmentReceiptName').textContent = receiptName;
+            
+            // Set form action
+            document.getElementById('addAttachmentForm').action = `/upload-attachment-to-receipt/${receiptId}`;
+            
+            // Reset form and camera areas
+            document.getElementById('attachment_file').value = '';
+            document.getElementById('cameraAttachmentArea').classList.add('d-none');
+            document.getElementById('capturedPhotoAttachmentArea').classList.add('d-none');
         });
     });
     
@@ -1296,6 +1483,175 @@ document.addEventListener('DOMContentLoaded', function() {
             stopCamera();
             capturedPhotoArea.classList.add('d-none');
             cameraPreviewArea.classList.add('d-none');
+        });
+    }
+    
+    // ===============================
+    // ATTACHMENT MODAL CAMERA FUNCTIONALITY
+    // ===============================
+    
+    // Attachment modal camera elements
+    const capturePhotoAttachmentBtn = document.getElementById('capturePhotoAttachmentBtn');
+    const capturePhotoMobileAttachmentBtn = document.getElementById('capturePhotoMobileAttachmentBtn');
+    const cameraAttachmentArea = document.getElementById('cameraAttachmentArea');
+    const capturedPhotoAttachmentArea = document.getElementById('capturedPhotoAttachmentArea');
+    const cameraAttachmentVideo = document.getElementById('cameraAttachmentVideo');
+    const captureAttachmentCanvas = document.getElementById('captureAttachmentCanvas');
+    const capturedAttachmentPhoto = document.getElementById('capturedAttachmentPhoto');
+    const cancelCameraAttachmentBtn = document.getElementById('cancelCameraAttachmentBtn');
+    const takePictureAttachmentBtn = document.getElementById('takePictureAttachmentBtn');
+    const retakePictureAttachmentBtn = document.getElementById('retakePictureAttachmentBtn');
+    const useCapturedPhotoAttachmentBtn = document.getElementById('useCapturedPhotoAttachmentBtn');
+    const attachmentFileInput = document.getElementById('attachment_file');
+    
+    let currentAttachmentStream = null;
+    let capturedAttachmentBlob = null;
+    
+    // Attachment modal camera functions
+    async function startAttachmentCamera(useRearCamera = false) {
+        try {
+            // Stop any existing stream
+            if (currentAttachmentStream) {
+                currentAttachmentStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Camera constraints
+            const constraints = {
+                video: {
+                    width: { ideal: 1920, max: 1920 },
+                    height: { ideal: 1080, max: 1080 },
+                    facingMode: useRearCamera ? 'environment' : 'user'
+                }
+            };
+            
+            // Get camera stream
+            currentAttachmentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            cameraAttachmentVideo.srcObject = currentAttachmentStream;
+            
+            // Show camera area
+            cameraAttachmentArea.classList.remove('d-none');
+            capturedPhotoAttachmentArea.classList.add('d-none');
+            
+            // Enable take picture button when video is ready
+            cameraAttachmentVideo.addEventListener('loadedmetadata', () => {
+                takePictureAttachmentBtn.disabled = false;
+            });
+            
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+            alert('Could not access camera. Please check permissions or try the file upload option.');
+        }
+    }
+    
+    function stopAttachmentCamera() {
+        if (currentAttachmentStream) {
+            currentAttachmentStream.getTracks().forEach(track => track.stop());
+            currentAttachmentStream = null;
+        }
+        cameraAttachmentArea.classList.add('d-none');
+        capturedPhotoAttachmentArea.classList.add('d-none');
+    }
+    
+    function takeAttachmentPicture() {
+        if (!cameraAttachmentVideo.videoWidth || !cameraAttachmentVideo.videoHeight) {
+            alert('Camera not ready. Please wait a moment and try again.');
+            return;
+        }
+        
+        // Set canvas size to match video
+        captureAttachmentCanvas.width = cameraAttachmentVideo.videoWidth;
+        captureAttachmentCanvas.height = cameraAttachmentVideo.videoHeight;
+        
+        // Draw current video frame to canvas
+        const ctx = captureAttachmentCanvas.getContext('2d');
+        ctx.drawImage(cameraAttachmentVideo, 0, 0);
+        
+        // Convert to blob and show preview
+        captureAttachmentCanvas.toBlob((blob) => {
+            capturedAttachmentBlob = blob;
+            const url = URL.createObjectURL(blob);
+            capturedAttachmentPhoto.src = url;
+            
+            // Hide camera, show captured photo
+            cameraAttachmentArea.classList.add('d-none');
+            capturedPhotoAttachmentArea.classList.remove('d-none');
+            
+            // Stop camera
+            if (currentAttachmentStream) {
+                currentAttachmentStream.getTracks().forEach(track => track.stop());
+            }
+        }, 'image/jpeg', 0.9);
+    }
+    
+    function useCapturedAttachmentPhoto() {
+        if (!capturedAttachmentBlob) {
+            alert('No photo captured');
+            return;
+        }
+        
+        // Create file from blob and set to input
+        const file = new File([capturedAttachmentBlob], "camera-attachment.jpg", { type: "image/jpeg" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        attachmentFileInput.files = dataTransfer.files;
+        
+        // Hide photo area
+        capturedPhotoAttachmentArea.classList.add('d-none');
+        
+        // Show success message
+        alert('Photo captured and ready for upload!');
+    }
+    
+    // Event listeners for attachment modal camera
+    if (capturePhotoAttachmentBtn) {
+        capturePhotoAttachmentBtn.addEventListener('click', () => startAttachmentCamera(true)); // Use rear camera by default
+    }
+    
+    if (capturePhotoMobileAttachmentBtn) {
+        capturePhotoMobileAttachmentBtn.addEventListener('click', () => {
+            // Fallback to mobile file input with camera
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.accept = 'image/*';
+            tempInput.capture = 'environment';
+            
+            tempInput.addEventListener('change', (event) => {
+                if (event.target.files && event.target.files[0]) {
+                    attachmentFileInput.files = event.target.files;
+                    alert('Photo selected and ready for upload!');
+                }
+            });
+            
+            tempInput.click();
+        });
+    }
+    
+    if (cancelCameraAttachmentBtn) {
+        cancelCameraAttachmentBtn.addEventListener('click', stopAttachmentCamera);
+    }
+    
+    if (takePictureAttachmentBtn) {
+        takePictureAttachmentBtn.addEventListener('click', takeAttachmentPicture);
+    }
+    
+    if (retakePictureAttachmentBtn) {
+        retakePictureAttachmentBtn.addEventListener('click', () => {
+            capturedPhotoAttachmentArea.classList.add('d-none');
+            startAttachmentCamera(true); // Restart camera
+        });
+    }
+    
+    if (useCapturedPhotoAttachmentBtn) {
+        useCapturedPhotoAttachmentBtn.addEventListener('click', useCapturedAttachmentPhoto);
+    }
+    
+    // Clean up attachment camera when modal is closed
+    const addAttachmentModal = document.getElementById('addAttachmentModal');
+    if (addAttachmentModal) {
+        addAttachmentModal.addEventListener('hidden.bs.modal', () => {
+            stopAttachmentCamera();
+            capturedPhotoAttachmentArea.classList.add('d-none');
+            cameraAttachmentArea.classList.add('d-none');
         });
     }
 });

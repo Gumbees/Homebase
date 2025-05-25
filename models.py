@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy.dialects.postgresql import JSONB, BYTEA
+from sqlalchemy.orm import deferred
 from app import db
 
 # Association table for the many-to-many relationship between objects and categories
@@ -70,12 +71,27 @@ class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
-    file_data = db.Column(BYTEA, nullable=False)  # Binary data for the receipt
+    file_data = deferred(db.Column(BYTEA, nullable=False))  # Binary data for the receipt - deferred loading
     file_type = db.Column(db.String(100))
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
         return f"<Attachment {self.filename}>"
+    
+    @property
+    def file_data_b64(self):
+        """Convert binary file data to base64 string - only computed when accessed"""
+        if self.file_data:
+            import base64
+            return base64.b64encode(self.file_data).decode('utf-8')
+        return None
+    
+    @property
+    def file_size(self):
+        """Get file size in bytes - without loading the full data into memory"""
+        if self.file_data:
+            return len(self.file_data)
+        return 0
 
 class Object(db.Model):
     __tablename__ = 'objects'
@@ -257,7 +273,7 @@ class ObjectAttachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     object_id = db.Column(db.Integer, db.ForeignKey('objects.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
-    file_data = db.Column(BYTEA, nullable=False)  # Binary data for the attachment
+    file_data = deferred(db.Column(BYTEA, nullable=False))  # Binary data for the attachment - deferred loading
     file_type = db.Column(db.String(100))  # MIME type of the file
     attachment_type = db.Column(db.String(50), default='photo')  # photo, document, etc.
     description = db.Column(db.String(255))  # Optional description of the attachment
@@ -267,6 +283,21 @@ class ObjectAttachment(db.Model):
     
     def __repr__(self):
         return f"<ObjectAttachment {self.filename} for Object {self.object_id}>"
+    
+    @property
+    def file_data_b64(self):
+        """Convert binary file data to base64 string - only computed when accessed"""
+        if self.file_data:
+            import base64
+            return base64.b64encode(self.file_data).decode('utf-8')
+        return None
+    
+    @property
+    def file_size(self):
+        """Get file size in bytes - without loading the full data into memory"""
+        if self.file_data:
+            return len(self.file_data)
+        return 0
 
 class Category(db.Model):
     """

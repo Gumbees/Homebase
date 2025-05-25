@@ -242,14 +242,31 @@ def receipt_upload():
                     'data': receipt_queue_data
                 })
                 
-                # Save the image data temporarily (we'll move this to attachment after approval)
-                temp_attachment_data = {
-                    'file_data': base64.b64encode(file_data).decode('utf-8'),
-                    'file_type': 'image/jpeg' if camera_image_data else (file.content_type or 'image/jpeg')
-                }
+                # Create a temporary invoice record to hold the attachment
+                temp_invoice = Invoice(
+                    invoice_number=f"TEMP-{receipt_task.id}",
+                    vendor_id=None,
+                    data={'status': 'temporary', 'created_from_task': receipt_task.id},
+                    is_paid=False
+                )
+                db.session.add(temp_invoice)
+                db.session.flush()  # Get the ID without committing
                 
-                # Update task with attachment data
-                receipt_task.data.update({'attachment': temp_attachment_data})
+                # Create attachment immediately
+                attachment = Attachment(
+                    invoice_id=temp_invoice.id,
+                    filename=filename,
+                    file_data=file_data,
+                    file_type='image/jpeg' if camera_image_data else (file.content_type or 'image/jpeg'),
+                    upload_date=datetime.utcnow()
+                )
+                db.session.add(attachment)
+                
+                # Store temp invoice ID in task data for later processing
+                receipt_task.data.update({
+                    'temp_invoice_id': temp_invoice.id,
+                    'attachment_id': attachment.id
+                })
                 db.session.commit()
                 
                 logger.info(f"Receipt queued for review: Task ID {receipt_task.id}")
@@ -282,12 +299,31 @@ def receipt_upload():
                     'data': receipt_queue_data
                 })
                 
-                # Save the image data
-                temp_attachment_data = {
-                    'file_data': base64.b64encode(file_data).decode('utf-8'),
-                    'file_type': 'image/jpeg' if camera_image_data else (file.content_type or 'image/jpeg')
-                }
-                receipt_task.data.update({'attachment': temp_attachment_data})
+                # Create temporary invoice and attachment even for failed AI analysis
+                temp_invoice = Invoice(
+                    invoice_number=f"TEMP-{receipt_task.id}",
+                    vendor_id=None,
+                    data={'status': 'temporary', 'created_from_task': receipt_task.id},
+                    is_paid=False
+                )
+                db.session.add(temp_invoice)
+                db.session.flush()  # Get the ID without committing
+                
+                # Create attachment immediately
+                attachment = Attachment(
+                    invoice_id=temp_invoice.id,
+                    filename=filename,
+                    file_data=file_data,
+                    file_type='image/jpeg' if camera_image_data else (file.content_type or 'image/jpeg'),
+                    upload_date=datetime.utcnow()
+                )
+                db.session.add(attachment)
+                
+                # Store temp invoice ID in task data for later processing
+                receipt_task.data.update({
+                    'temp_invoice_id': temp_invoice.id,
+                    'attachment_id': attachment.id
+                })
                 db.session.commit()
             
                 flash(f'Receipt uploaded but AI analysis failed. Please review manually in the <a href="/ai-queue">AI Queue</a>. Error: {str(mcp_error)[:100]}...', 'warning')
@@ -574,10 +610,17 @@ def receipts_page():
     """Display paid receipts page"""
     logger.debug("Rendering receipts page")
     
-    # Query for paid receipts using date from data JSON column
-    receipts = Invoice.query.filter_by(is_paid=True)\
-        .order_by(Invoice.data['date'].desc())\
-        .all()
+    # Query for paid receipts using date from data JSON column, excluding temporary invoices
+    all_paid_receipts = Invoice.query.filter_by(is_paid=True).order_by(Invoice.data['date'].desc()).all()
+    
+    # Filter out temporary invoices (most receipts won't have a status field, which is fine)
+    receipts = [r for r in all_paid_receipts if not (r.data and r.data.get('status') == 'temporary')]
+    
+    # Add attachment counts to receipts for template usage (without loading binary data)
+    for receipt in receipts:
+        # Only load attachment metadata (filename, file_type, etc.) without file_data
+        receipt.attachments = db.session.query(Attachment).filter_by(invoice_id=receipt.id).options(db.defer(Attachment.file_data)).all()
+    
     return render_template('receipts_page.html', receipts=receipts)
 
 @app.route('/view-receipt/<int:receipt_id>')
@@ -589,7 +632,8 @@ def view_receipt(receipt_id):
         # Get line items and objects for this receipt
         line_items = InvoiceLineItem.query.filter_by(invoice_id=receipt_id).all()
         objects = Object.query.filter_by(invoice_id=receipt_id).all()
-        attachments = Attachment.query.filter_by(invoice_id=receipt_id).all()
+        # Load attachments without binary data for the detail page
+        attachments = db.session.query(Attachment).filter_by(invoice_id=receipt_id).options(db.defer(Attachment.file_data)).all()
         
         # Get creation tracking summary to determine what can still be created
         creation_summary = ReceiptCreationTracking.get_creation_summary(receipt_id)
@@ -1047,9 +1091,15 @@ def get_receipt_details(receipt_id):
         objects = Object.query.filter_by(invoice_id=receipt_id).all()
         logger.debug(f"Found {len(objects)} objects for receipt {receipt_id}")
         
-        # Get receipt attachments
-        attachments = Attachment.query.filter_by(invoice_id=receipt_id).all()
+        # Get receipt attachments (without loading binary data by default)
+        attachments = db.session.query(Attachment).filter_by(invoice_id=receipt_id).options(db.defer(Attachment.file_data)).all()
         logger.debug(f"Found {len(attachments)} attachments for receipt {receipt_id}")
+        
+        # Debug: Log attachment details
+        for att in attachments:
+            logger.debug(f"Attachment {att.id}: {att.filename} ({att.file_type}) - {len(att.file_data) if att.file_data else 0} bytes")
+            if att.file_data:
+                logger.debug(f"  Base64 encoding successful: {len(base64.b64encode(att.file_data).decode('utf-8'))} characters")
         
         # Safely handle data extraction
         receipt_data = receipt.data or {}
@@ -1177,15 +1227,25 @@ def get_receipt_details(receipt_id):
                 logger.warning(f"Error processing object {obj.id}: {str(obj_error)}")
                 continue
         
-        # Safely process attachments
+        # Safely process attachments - only load binary data for images
         for attachment in attachments:
             try:
+                # Check if this is an image type that we want to show inline
+                is_image = attachment.file_type and 'image' in attachment.file_type.lower()
+                file_data_b64 = None
+                
+                if is_image:
+                    # Load the binary data only for images that will be displayed
+                    attachment_with_data = Attachment.query.get(attachment.id)
+                    if attachment_with_data and attachment_with_data.file_data:
+                        file_data_b64 = base64.b64encode(attachment_with_data.file_data).decode('utf-8')
+                
                 response_data['attachments'].append({
                     'id': attachment.id,
                     'filename': attachment.filename,
                     'file_type': attachment.file_type,
                     'upload_date': attachment.upload_date.isoformat() if attachment.upload_date else None,
-                    'file_data_b64': base64.b64encode(attachment.file_data).decode('utf-8') if attachment.file_data else None
+                    'file_data_b64': file_data_b64  # Only set for images
                 })
             except Exception as att_error:
                 logger.warning(f"Error processing attachment {attachment.id}: {str(att_error)}")
@@ -1935,17 +1995,34 @@ def process_receipt_task(task):
         db.session.add(invoice)
         db.session.flush()  # Get the invoice ID
         
-        # Create attachment from the stored image data
-        attachment_data = task.data.get('attachment', {})
-        if attachment_data.get('file_data'):
-            attachment = Attachment(
-                invoice_id=invoice.id,
-                filename=task.data.get('processed_filename', 'receipt.jpg'),
-                file_data=base64.b64decode(attachment_data['file_data']),
-                file_type=attachment_data.get('file_type', 'image/jpeg'),
-                upload_date=datetime.utcnow()
-            )
-            db.session.add(attachment)
+        # Handle attachment - either move from temp invoice or create new
+        temp_invoice_id = task.data.get('temp_invoice_id')
+        attachment_id = task.data.get('attachment_id')
+        
+        if temp_invoice_id and attachment_id:
+            # Move attachment from temp invoice to real invoice
+            attachment = Attachment.query.get(attachment_id)
+            if attachment:
+                attachment.invoice_id = invoice.id
+                logger.info(f"Moved attachment {attachment.id} from temp invoice {temp_invoice_id} to invoice {invoice.id}")
+            
+            # Delete the temporary invoice
+            temp_invoice = Invoice.query.get(temp_invoice_id)
+            if temp_invoice:
+                db.session.delete(temp_invoice)
+                logger.info(f"Deleted temporary invoice {temp_invoice_id}")
+        else:
+            # Fallback: Create attachment from task data (legacy support)
+            attachment_data = task.data.get('attachment', {})
+            if attachment_data.get('file_data'):
+                attachment = Attachment(
+                    invoice_id=invoice.id,
+                    filename=task.data.get('processed_filename', 'receipt.jpg'),
+                    file_data=base64.b64decode(attachment_data['file_data']),
+                    file_type=attachment_data.get('file_type', 'image/jpeg'),
+                    upload_date=datetime.utcnow()
+                )
+                db.session.add(attachment)
         
         # Create objects from line items if they exist
         line_items = ai_analysis.get('line_items', [])
@@ -3119,6 +3196,41 @@ def update_ai_features():
         flash(f'Error updating settings: {str(e)}', 'danger')
         return redirect(url_for('settings'))
 
+@app.route('/api/database-status', methods=['GET'])
+def get_database_status():
+    """Get database initialization status"""
+    try:
+        from db_init import verify_database_setup
+        status = verify_database_setup()
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error checking database status: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'tables_created': False,
+            'optimizations_applied': False,
+            'ai_settings_initialized': False
+        }), 500
+
+@app.route('/admin/database-init', methods=['POST'])
+def force_database_init():
+    """Force database initialization (admin endpoint)"""
+    try:
+        from db_init import initialize_database
+        success = initialize_database()
+        
+        if success:
+            flash('Database initialization completed successfully!', 'success')
+        else:
+            flash('Database initialization failed. Check logs for details.', 'danger')
+            
+        return redirect(url_for('settings'))
+    except Exception as e:
+        logger.error(f"Error during forced database initialization: {str(e)}")
+        flash(f'Database initialization error: {str(e)}', 'danger')
+        return redirect(url_for('settings'))
+
 @app.route('/api/re-evaluate-receipt/<int:receipt_id>', methods=['POST'])
 def re_evaluate_receipt(receipt_id):
     """
@@ -3469,6 +3581,22 @@ def reject_receipt(task_id):
         if task.task_type != 'receipt_processing':
             flash('Invalid task type for receipt rejection', 'danger')
             return redirect(url_for('ai_queue'))
+        
+        # Clean up temporary invoice and attachment if they exist
+        temp_invoice_id = task.data.get('temp_invoice_id')
+        attachment_id = task.data.get('attachment_id')
+        
+        if temp_invoice_id:
+            temp_invoice = Invoice.query.get(temp_invoice_id)
+            if temp_invoice:
+                db.session.delete(temp_invoice)
+                logger.info(f"Deleted temporary invoice {temp_invoice_id} due to task rejection")
+        
+        if attachment_id:
+            attachment = Attachment.query.get(attachment_id)
+            if attachment:
+                db.session.delete(attachment)
+                logger.info(f"Deleted attachment {attachment_id} due to task rejection")
         
         # Mark task as rejected
         task.status = 'rejected'
@@ -5881,6 +6009,58 @@ def create_event_from_data(event_details, invoice):
     except Exception as e:
         logger.error(f"Error creating event from data: {str(e)}")
         return None
+
+@app.route('/upload-attachment-to-receipt/<int:receipt_id>', methods=['POST'])
+def upload_attachment_to_receipt(receipt_id):
+    """Upload an attachment to an existing receipt"""
+    try:
+        # Get the receipt
+        receipt = Invoice.query.get_or_404(receipt_id)
+        
+        # Check if receipt already has attachments (count only, no binary data needed)
+        existing_attachments = db.session.query(Attachment).filter_by(invoice_id=receipt_id).count()
+        if existing_attachments > 0:
+            flash('Receipt already has attachments. Delete existing attachments first if you want to replace them.', 'warning')
+            return redirect(url_for('receipts_page'))
+        
+        # Check if file was uploaded
+        if 'attachment_file' not in request.files:
+            flash('No file uploaded', 'danger')
+            return redirect(url_for('receipts_page'))
+        
+        file = request.files['attachment_file']
+        
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(url_for('receipts_page'))
+        
+        if file and allowed_file(file.filename):
+            # Read file data
+            file_data = file.read()
+            
+            # Create attachment
+            attachment = Attachment(
+                invoice_id=receipt_id,
+                filename=file.filename,
+                file_data=file_data,
+                file_type=file.content_type or 'application/octet-stream',
+                upload_date=datetime.utcnow()
+            )
+            db.session.add(attachment)
+            db.session.commit()
+            
+            logger.info(f"Added attachment {attachment.filename} to receipt {receipt.invoice_number}")
+            flash(f'Successfully uploaded attachment "{file.filename}" to receipt {receipt.invoice_number}', 'success')
+        else:
+            flash('Invalid file type. Please upload an image or PDF.', 'danger')
+        
+        return redirect(url_for('receipts_page'))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error uploading attachment to receipt {receipt_id}: {str(e)}")
+        flash(f'Error uploading attachment: {str(e)}', 'danger')
+        return redirect(url_for('receipts_page'))
 
 @app.route('/view-attachment/<int:attachment_id>')
 def view_attachment(attachment_id):

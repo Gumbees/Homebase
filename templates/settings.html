@@ -161,6 +161,36 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Database Status -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-database me-2"></i>Database Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Check the status of your database initialization and optimizations.</p>
+                        
+                        <div id="database-status-container">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Checking database status...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-primary" id="refresh-database-status">
+                                <i class="fas fa-sync-alt"></i> Refresh Status
+                            </button>
+                            <form method="POST" action="{{ url_for('force_database_init') }}" style="display: inline;">
+                                <button type="submit" class="btn btn-warning" onclick="return confirm('This will reinitialize the database. Continue?')">
+                                    <i class="fas fa-tools"></i> Force Initialize Database
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -231,6 +261,91 @@
                         }, 3000);
                     });
             });
+        });
+
+        // Database status functionality
+        function loadDatabaseStatus() {
+            fetch('/api/database-status')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('database-status-container');
+                    let statusHtml = '';
+                    
+                    if (data.status === 'success') {
+                        statusHtml = `
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <strong>Tables Created</strong>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-${data.optimizations_applied ? 'check-circle text-success' : 'times-circle text-warning'} me-2"></i>
+                                        <strong>Database Optimized</strong>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-${data.ai_settings_initialized ? 'check-circle text-success' : 'times-circle text-warning'} me-2"></i>
+                                        <strong>AI Settings Initialized</strong>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="alert alert-${data.status === 'success' && data.optimizations_applied && data.ai_settings_initialized ? 'success' : 'warning'} mb-0">
+                                        ${data.status === 'success' && data.optimizations_applied && data.ai_settings_initialized 
+                                            ? '<i class="fas fa-check-circle me-2"></i>Database is fully initialized and optimized!'
+                                            : '<i class="fas fa-exclamation-triangle me-2"></i>Database needs additional initialization.'
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        if (data.missing_tables && data.missing_tables.length > 0) {
+                            statusHtml += `
+                                <div class="mt-3">
+                                    <h6 class="text-warning">Missing Tables:</h6>
+                                    <div class="text-muted small">
+                                        ${data.missing_tables.join(', ')}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        statusHtml = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <strong>Database Status Error:</strong> ${data.error || 'Unknown error occurred'}
+                            </div>
+                        `;
+                    }
+                    
+                    container.innerHTML = statusHtml;
+                })
+                .catch(error => {
+                    const container = document.getElementById('database-status-container');
+                    container.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <strong>Failed to check database status:</strong> ${error.message}
+                        </div>
+                    `;
+                });
+        }
+
+        // Load database status on page load
+        document.addEventListener('DOMContentLoaded', loadDatabaseStatus);
+
+        // Refresh button functionality
+        document.getElementById('refresh-database-status').addEventListener('click', function() {
+            const container = document.getElementById('database-status-container');
+            container.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Checking database status...</p>
+                </div>
+            `;
+            loadDatabaseStatus();
         });
     </script>
 {% endblock %}

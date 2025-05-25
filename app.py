@@ -66,17 +66,31 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # Initialize the app with the SQLAlchemy extension
 db.init_app(app)
 
-# Create database tables
+# Initialize database on startup
 with app.app_context():
     # Import models to ensure they're recognized by SQLAlchemy
     import models  # noqa: F401
     
     try:
-        app_logger.info("Creating database tables...")
-        db.create_all()
-        app_logger.info("Database tables created successfully")
+        # Use our comprehensive database initialization
+        from db_init import initialize_if_needed
+        
+        app_logger.info("Initializing database...")
+        if initialize_if_needed():
+            app_logger.info("Database initialization completed successfully")
+        else:
+            app_logger.error("Database initialization failed")
+            # Continue anyway - app might still work with existing data
+            
     except Exception as e:
-        app_logger.error(f"Error creating database tables: {e}")
+        app_logger.error(f"Error during database initialization: {e}")
+        # Fallback to basic table creation
+        try:
+            app_logger.info("Falling back to basic table creation...")
+            db.create_all()
+            app_logger.info("Basic database tables created")
+        except Exception as fallback_error:
+            app_logger.error(f"Fallback database creation also failed: {fallback_error}")
 
 # Import routes after app is initialized
 from routes import *  # noqa: F401,E402
