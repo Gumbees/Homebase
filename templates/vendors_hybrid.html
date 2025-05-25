@@ -104,10 +104,10 @@
                                                 <i class="fas fa-building text-success me-1"></i>
                                                 Primary Organization
                                                 <br><small class="text-muted">Contact management available</small>
-                                                {% if vendor.organization.metadata and vendor.organization.metadata.get('linked_vendor_names') %}
+                                                {% if vendor.organization.data and vendor.organization.data.get('linked_vendor_names') %}
                                                     <br><small class="text-info">
                                                         <i class="fas fa-tags me-1"></i>
-                                                        {{ vendor.organization.metadata.linked_vendor_names|length }} linked name(s)
+                                                        {{ vendor.organization.data.linked_vendor_names|length }} linked name(s)
                                                     </small>
                                                 {% endif %}
                                             {% endif %}
@@ -127,9 +127,9 @@
                                             <br><small class="text-muted">receipts</small>
                                         {% endif %}
                                         
-                                        {% if vendor.is_organization and not vendor.is_linked_name and vendor.organization.metadata and vendor.organization.metadata.get('linked_vendor_names') %}
+                                        {% if vendor.is_organization and not vendor.is_linked_name and vendor.organization.data and vendor.organization.data.get('linked_vendor_names') %}
                                             {% set total_linked_receipts = 0 %}
-                                            {% for linked_name in vendor.organization.metadata.linked_vendor_names %}
+                                            {% for linked_name in vendor.organization.data.linked_vendor_names %}
                                                 {% set linked_count = vendors|selectattr('name', 'equalto', linked_name)|map(attribute='receipt_count')|sum %}
                                                 {% set total_linked_receipts = total_linked_receipts + linked_count %}
                                             {% endfor %}
@@ -142,7 +142,7 @@
                                     </td>
                                     <td>
                                         {% if vendor.is_organization and vendor.organization %}
-                                            {% set contact = vendor.organization.contact_info or {} %}
+                                            {% set contact = vendor.organization.data or {} %}
                                             {% if contact.email %}
                                                 <i class="fas fa-envelope text-muted me-1"></i>{{ contact.email }}<br>
                                             {% endif %}

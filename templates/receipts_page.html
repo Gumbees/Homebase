@@ -170,22 +170,10 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">AI Model for Processing</label>
-                        <div class="d-flex gap-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ai_provider" id="model_claude" value="claude" checked>
-                                <label class="form-check-label" for="model_claude">
-                                    <i class="fas fa-robot me-1"></i> Claude (Anthropic)
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ai_provider" id="model_openai" value="openai">
-                                <label class="form-check-label" for="model_openai">
-                                    <i class="fas fa-brain me-1"></i> GPT-4o (OpenAI)
-                                </label>
-                            </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-brain me-2"></i>
+                            <strong>AI Processing:</strong> Powered by OpenAI GPT-4o with advanced vision capabilities for receipt analysis, QR code extraction, and image cropping.
                         </div>
-                        <div class="form-text">Select which AI model to use for processing. Default is Claude.</div>
                     </div>
                     
                     <!-- Legacy Mobile Camera Preview (fallback) -->
@@ -383,7 +371,20 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <dt class="col-sm-4">Vendor:</dt>
                                         <dd class="col-sm-8">
                                             ${receipt.data.vendor || receipt.data.vendor_name || 'Unknown'}
-                                            ${receipt.vendor_id ? '' : '<button class="btn btn-sm btn-outline-info ms-2 promote-vendor-btn" data-vendor-name="' + (receipt.data.vendor || receipt.data.vendor_name || '') + '"><i class="fas fa-arrow-up me-1"></i>Promote to Organization</button>'}
+                                            ${(function() {
+                                                const suggestions = data.receipt.suggestions;
+                                                const canCreateOrg = suggestions && suggestions.can_create_organization;
+                                                
+                                                if (receipt.vendor_id) {
+                                                    return ''; // Already has organization
+                                                }
+                                                
+                                                if (canCreateOrg === false) {
+                                                    return '<span class="badge bg-success ms-2"><i class="fas fa-check me-1"></i>Organization Created</span>';
+                                                }
+                                                
+                                                return '<button class="btn btn-sm btn-outline-info ms-2 promote-vendor-btn" data-vendor-name="' + (receipt.data.vendor || receipt.data.vendor_name || '') + '"><i class="fas fa-arrow-up me-1"></i>Promote to Organization</button>';
+                                            })()}
                                         </dd>
                                         <dt class="col-sm-4">Total:</dt>
                                         <dd class="col-sm-8">$${parseFloat(receipt.data.total_amount || 0).toFixed(2)}</dd>
@@ -447,9 +448,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="card border-info">
                                     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                                         <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Event Information Detected</h6>
-                                        <button class="btn btn-sm btn-light create-calendar-event-btn" data-receipt-id="${receipt.id}">
-                                            <i class="fas fa-plus me-1"></i>Create Calendar Event
-                                        </button>
+                                        ${(function() {
+                                            const suggestions = data.receipt.suggestions;
+                                            const canCreateEvent = suggestions && suggestions.can_create_event;
+                                            
+                                            if (canCreateEvent === false) {
+                                                return '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Event Created</span>';
+                                            }
+                                            
+                                            return '<button class="btn btn-sm btn-light create-calendar-event-btn" data-receipt-id="' + receipt.id + '"><i class="fas fa-plus me-1"></i>Create Calendar Event</button>';
+                                        })()}
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
@@ -509,13 +517,24 @@ document.addEventListener('DOMContentLoaded', function() {
                                                         </span>
                                                     </small>
                                                 </div>
-                                                <button class="btn btn-sm btn-outline-success create-person-btn" 
-                                                        data-receipt-id="${receipt.id}"
-                                                        data-person-name="${person.person_name}"
-                                                        data-person-role="${person.role || ''}"
-                                                        data-relationship="${person.relationship_to_purchase}">
-                                                    <i class="fas fa-plus"></i>
-                                                </button>
+                                                ${(function() {
+                                                    const suggestions = data.receipt.suggestions;
+                                                    const canCreatePeople = suggestions && suggestions.can_create_people;
+                                                    
+                                                    if (canCreatePeople === false) {
+                                                        return '<span class="badge bg-success"><i class="fas fa-check"></i></span>';
+                                                    }
+                                                    
+                                                    return `
+                                                        <button class="btn btn-sm btn-outline-success create-person-btn" 
+                                                                data-receipt-id="${receipt.id}"
+                                                                data-person-name="${person.person_name}"
+                                                                data-person-role="${person.role || ''}"
+                                                                data-relationship="${person.relationship_to_purchase}">
+                                                            <i class="fas fa-plus"></i>
+                                                        </button>
+                                                    `;
+                                                })()}
                                             </div>
                                             <div class="mt-1">
                                                 <span class="badge bg-success">
@@ -644,18 +663,31 @@ document.addEventListener('DOMContentLoaded', function() {
                                             ` : '<span class="text-muted">No suggestion</span>'}
                                         </td>
                                         <td>
-                                            ${item.object_type ? `
-                                                <button class="btn btn-sm btn-success create-object-btn" 
-                                                        data-receipt-id="${receipt.id}"
-                                                        data-item-index="${index}"
-                                                        data-object-type="${item.object_type || 'asset'}"
-                                                        data-category="${item.category || ''}"
-                                                        data-description="${item.description || ''}"
-                                                        data-unit-price="${item.unit_price || 0}"
-                                                        data-quantity="${item.quantity || 1}">
-                                                    <i class="fas fa-plus me-1"></i>Create
-                                                </button>
-                                            ` : '<span class="text-muted">N/A</span>'}
+                                            ${(function() {
+                                                const suggestions = data.receipt.suggestions;
+                                                const canCreate = suggestions && suggestions.line_item_suggestions && suggestions.line_item_suggestions[index] && suggestions.line_item_suggestions[index].can_create_object;
+                                                
+                                                if (!item.object_type) {
+                                                    return '<span class="text-muted">N/A</span>';
+                                                }
+                                                
+                                                if (canCreate === false) {
+                                                    return '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Created</span>';
+                                                }
+                                                
+                                                return `
+                                                    <button class="btn btn-sm btn-success create-object-btn" 
+                                                            data-receipt-id="${receipt.id}"
+                                                            data-item-index="${index}"
+                                                            data-object-type="${item.object_type || 'asset'}"
+                                                            data-category="${item.category || ''}"
+                                                            data-description="${item.description || ''}"
+                                                            data-unit-price="${item.unit_price || 0}"
+                                                            data-quantity="${item.quantity || 1}">
+                                                        <i class="fas fa-plus me-1"></i>Create
+                                                    </button>
+                                                `;
+                                            })()}
                                         </td>
                                     </tr>
                                 `;
@@ -681,6 +713,48 @@ document.addEventListener('DOMContentLoaded', function() {
                             `;
                         }
                         
+                        // Receipt Attachments (Original Image/PDF)
+                        if (receipt.attachments && receipt.attachments.length > 0) {
+                            modalContent += `
+                            <div class="mt-3">
+                                <h6><i class="fas fa-paperclip me-2"></i>Receipt Images & Documents</h6>
+                                <div class="row">
+                            `;
+                            
+                            receipt.attachments.forEach(attachment => {
+                                const isPdf = attachment.file_type && attachment.file_type.includes('pdf');
+                                const isImage = attachment.file_type && attachment.file_type.includes('image');
+                                
+                                modalContent += `
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card">
+                                            <div class="card-body text-center">
+                                                <div class="mb-2">
+                                                    <i class="fas fa-${isPdf ? 'file-pdf' : 'image'} fa-2x text-${isPdf ? 'danger' : 'primary'}"></i>
+                                                </div>
+                                                <h6 class="card-title">${attachment.filename}</h6>
+                                                <small class="text-muted">${attachment.file_type || 'Unknown type'}</small>
+                                                <br>
+                                                <small class="text-muted">
+                                                    ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown date'}
+                                                </small>
+                                                <div class="mt-2">
+                                                    <a href="/view-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-primary">
+                                                        <i class="fas fa-eye me-1"></i>View ${isPdf ? 'PDF' : 'Image'}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            modalContent += `
+                                </div>
+                            </div>
+                            `;
+                        }
+
                         // Created Objects
                         if (receipt.objects && receipt.objects.length > 0) {
                             modalContent += `
@@ -769,9 +843,55 @@ document.addEventListener('DOMContentLoaded', function() {
                                     .then(response => response.json())
                                     .then(data => {
                                         if (data.success) {
-                                            alert(`Successfully created ${objectType}: "${data.object_name}"!`);
-                                            // Refresh the modal
-                                            document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                            let message = `Successfully created ${objectType}: "${data.object_name}"!`;
+                                            
+                                            // Check for event suggestion
+                                            if (data.event_suggestion && data.event_suggestion.should_create_event) {
+                                                const suggestion = data.event_suggestion;
+                                                message += `\n\nEvent ticket detected! Would you like to create a calendar event?`;
+                                                message += `\nSuggested event: "${suggestion.suggested_event_title}"`;
+                                                message += `\nDate: ${suggestion.suggested_event_date}`;
+                                                
+                                                if (confirm(message + '\n\nCreate calendar event now?')) {
+                                                    // Auto-create the suggested event
+                                                    fetch('/create-calendar-event-from-receipt', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json',
+                                                        },
+                                                        body: JSON.stringify({
+                                                            receipt_id: receiptId,
+                                                            suggested_title: suggestion.suggested_event_title,
+                                                            suggested_date: suggestion.suggested_event_date,
+                                                            suggested_type: suggestion.suggested_event_type,
+                                                            related_object_id: suggestion.related_object_id
+                                                        })
+                                                    })
+                                                    .then(response => response.json())
+                                                    .then(eventData => {
+                                                        if (eventData.success) {
+                                                            alert(`Calendar event "${eventData.event_name}" created and linked to your ticket!`);
+                                                        } else {
+                                                            alert(`Object created successfully, but failed to create event: ${eventData.error}`);
+                                                        }
+                                                        // Refresh the modal
+                                                        document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                                    })
+                                                    .catch(error => {
+                                                        alert(`Object created successfully, but error creating event: ${error.message}`);
+                                                        // Refresh the modal
+                                                        document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                                    });
+                                                } else {
+                                                    alert(message.split('\n\n')[0]); // Just show the success message
+                                                    // Refresh the modal
+                                                    document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                                }
+                                            } else {
+                                                alert(message);
+                                                // Refresh the modal
+                                                document.querySelector(`[data-receipt-id="${receiptId}"]`).click();
+                                            }
                                         } else {
                                             alert(`Error creating object: ${data.error}`);
                                         }
@@ -792,16 +912,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const relationship = this.getAttribute('data-relationship');
                                 
                                 if (confirm(`Create person object: "${personName}"?`)) {
-                                    fetch('/create-person-from-receipt', {
+                                    fetch('/create-object-from-receipt', {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
                                         },
                                         body: JSON.stringify({
                                             receipt_id: receiptId,
-                                            person_name: personName,
+                                            description: personName,
+                                            object_type: 'person',
                                             person_role: personRole,
-                                            relationship: relationship
+                                            relationship: relationship,
+                                            quantity: 1,
+                                            unit_price: 0
                                         })
                                     })
                                     .then(response => response.json())

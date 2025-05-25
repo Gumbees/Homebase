@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.display_name }} - User Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-user me-2"></i>{{ user.display_name }}
+                        <small class="text-muted">(@{{ user.username }})</small>
+                    </h1>
+                    <p class="text-muted">User Details and Linked Person Objects</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('users_page') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Users
+                    </a>
+                </div>
+            </div>
+
+            <!-- User Information Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-id-card me-2"></i>User Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Username:</strong></td>
+                                    <td>{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Display Name:</strong></td>
+                                    <td>{{ user.display_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td>{{ user.email }}</td>
+                                </tr>
+                                {% if user.first_name %}
+                                <tr>
+                                    <td><strong>First Name:</strong></td>
+                                    <td>{{ user.first_name }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if user.last_name %}
+                                <tr>
+                                    <td><strong>Last Name:</strong></td>
+                                    <td>{{ user.last_name }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        {% if user.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inactive</span>
+                                        {% endif %}
+                                        {% if user.is_admin %}
+                                            <span class="badge bg-warning">Admin</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Created:</strong></td>
+                                    <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else 'Unknown' }}</td>
+                                </tr>
+                                {% if user.last_login %}
+                                <tr>
+                                    <td><strong>Last Login:</strong></td>
+                                    <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if user.data.get('promoted_from_person_id') %}
+                                <tr>
+                                    <td><strong>Source:</strong></td>
+                                    <td>
+                                        <span class="badge bg-info">Promoted from Person Object</span>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Aliases Card -->
+            {% if user.aliases %}
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tags me-2"></i>Name Aliases ({{ user.aliases|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for alias in user.aliases %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ alias.alias_name }}</h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="badge bg-primary">{{ alias.alias_type }}</span>
+                                            <span class="badge bg-success">{{ "%.0f"|format(alias.confidence * 100) }}%</span>
+                                        </div>
+                                        <form method="post" action="{{ url_for('remove_user_alias', user_id=user.id, alias_id=alias.id) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="return confirm('Remove alias {{ alias.alias_name }}?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Add New Alias Form -->
+                    <div class="mt-3">
+                        <h6>Add New Alias</h6>
+                        <form method="post" action="{{ url_for('add_user_alias', user_id=user.id) }}" class="row g-3">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" name="alias_name" placeholder="Alias name" required>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" name="alias_type">
+                                    <option value="name">Name</option>
+                                    <option value="nickname">Nickname</option>
+                                    <option value="maiden_name">Maiden Name</option>
+                                    <option value="linked_person">Linked Person</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" class="form-control" name="confidence" 
+                                       min="0.1" max="1.0" step="0.1" value="1.0" placeholder="Confidence">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Related Entities Tabbed Interface -->
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-project-diagram me-2"></i>Related Data
+                        {% if person_names %}
+                            <small class="opacity-75">
+                                (for: {{ person_names|join(', ') }})
+                            </small>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs" id="relatedDataTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="persons-tab" data-bs-toggle="tab" data-bs-target="#persons" 
+                                    type="button" role="tab" aria-controls="persons" aria-selected="true">
+                                <i class="fas fa-users me-1"></i>Person Objects 
+                                <span class="badge bg-primary ms-1">{{ linked_persons|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="objects-tab" data-bs-toggle="tab" data-bs-target="#objects" 
+                                    type="button" role="tab" aria-controls="objects" aria-selected="false">
+                                <i class="fas fa-boxes me-1"></i>Related Objects 
+                                <span class="badge bg-info ms-1">{{ related_objects|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" 
+                                    type="button" role="tab" aria-controls="invoices" aria-selected="false">
+                                <i class="fas fa-receipt me-1"></i>Invoices 
+                                <span class="badge bg-warning ms-1">{{ related_invoices|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="organizations-tab" data-bs-toggle="tab" data-bs-target="#organizations" 
+                                    type="button" role="tab" aria-controls="organizations" aria-selected="false">
+                                <i class="fas fa-building me-1"></i>Organizations 
+                                <span class="badge bg-secondary ms-1">{{ related_organizations|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" 
+                                    type="button" role="tab" aria-controls="events" aria-selected="false">
+                                <i class="fas fa-calendar me-1"></i>Events 
+                                <span class="badge bg-success ms-1">{{ related_calendar_events|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes" 
+                                    type="button" role="tab" aria-controls="notes" aria-selected="false">
+                                <i class="fas fa-sticky-note me-1"></i>Notes 
+                                <span class="badge bg-info ms-1">{{ related_notes|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" 
+                                    type="button" role="tab" aria-controls="tasks" aria-selected="false">
+                                <i class="fas fa-tasks me-1"></i>Tasks 
+                                <span class="badge bg-danger ms-1">{{ related_tasks|length }}</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content mt-3" id="relatedDataTabContent">
+                        <!-- Person Objects Tab -->
+                        <div class="tab-pane fade show active" id="persons" role="tabpanel" aria-labelledby="persons-tab">
+                            {% if linked_persons %}
+                            <div class="row">
+                                {% for person in linked_persons %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-success">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <h6 class="card-title">
+                                                        {{ person.data.name }}
+                                                        {% set mapping = user.person_mappings|selectattr('person_object_id', 'equalto', person.id)|first %}
+                                                        {% if mapping and mapping.is_primary %}
+                                                            <span class="badge bg-primary">Primary</span>
+                                                        {% endif %}
+                                                    </h6>
+                                                    {% if person.data.contact_email %}
+                                                        <p class="mb-1"><i class="fas fa-envelope me-1"></i>{{ person.data.contact_email }}</p>
+                                                    {% endif %}
+                                                    {% if person.data.contact_phone %}
+                                                        <p class="mb-1"><i class="fas fa-phone me-1"></i>{{ person.data.contact_phone }}</p>
+                                                    {% endif %}
+                                                    {% if person.data.role %}
+                                                        <p class="mb-1"><i class="fas fa-briefcase me-1"></i>{{ person.data.role }}</p>
+                                                    {% endif %}
+                                                    {% if person.data.description %}
+                                                        <p class="mb-1 text-muted">{{ person.data.description|truncate(100) }}</p>
+                                                    {% endif %}
+                                                    <small class="text-muted">
+                                                        Created: {{ person.created_at.strftime('%Y-%m-%d') if person.created_at else 'Unknown' }}
+                                                    </small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <button class="btn btn-sm btn-outline-primary view-object-details-btn" 
+                                                            data-object-id="{{ person.id }}" 
+                                                            data-object-name="{{ person.data.name }}">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No linked person objects</h5>
+                                <p class="text-muted">This user is not currently linked to any person objects in the inventory.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Objects Tab -->
+                        <div class="tab-pane fade" id="objects" role="tabpanel" aria-labelledby="objects-tab">
+                            {% if related_objects %}
+                            <div class="row">
+                                {% for obj in related_objects %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-info">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <h6 class="card-title">
+                                                        {{ obj.data.name }}
+                                                        <span class="badge bg-{{ 'primary' if obj.object_type == 'asset' else 'success' if obj.object_type == 'consumable' else 'info' }}">
+                                                            {{ obj.object_type|capitalize }}
+                                                        </span>
+                                                    </h6>
+                                                    {% if obj.data.description %}
+                                                        <p class="mb-1 text-muted">{{ obj.data.description|truncate(100) }}</p>
+                                                    {% endif %}
+                                                    {% if obj.data.category %}
+                                                        <p class="mb-1"><i class="fas fa-tag me-1"></i>{{ obj.data.category }}</p>
+                                                    {% endif %}
+                                                    <small class="text-muted">
+                                                        Created: {{ obj.created_at.strftime('%Y-%m-%d') if obj.created_at else 'Unknown' }}
+                                                    </small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <button class="btn btn-sm btn-outline-primary view-object-details-btn" 
+                                                            data-object-id="{{ obj.id }}" 
+                                                            data-object-name="{{ obj.data.name }}">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related objects found</h5>
+                                <p class="text-muted">No inventory objects mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Invoices Tab -->
+                        <div class="tab-pane fade" id="invoices" role="tabpanel" aria-labelledby="invoices-tab">
+                            {% if related_invoices %}
+                            <div class="row">
+                                {% for invoice in related_invoices %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-warning">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                {{ invoice.invoice_number }}
+                                                <span class="badge bg-{{ 'success' if invoice.is_paid else 'warning' }}">
+                                                    {{ 'Paid' if invoice.is_paid else 'Unpaid' }}
+                                                </span>
+                                            </h6>
+                                            <p class="mb-1"><i class="fas fa-store me-1"></i>{{ invoice.data.get('vendor', 'Unknown Vendor') }}</p>
+                                            <p class="mb-1"><i class="fas fa-dollar-sign me-1"></i>${{ "%.2f"|format(invoice.data.get('total_amount', 0)) }}</p>
+                                            <small class="text-muted">
+                                                Date: {{ invoice.data.get('date', invoice.created_at.strftime('%Y-%m-%d') if invoice.created_at else 'Unknown') }}
+                                            </small>
+                                            <div class="mt-2">
+                                                <a href="{{ url_for('view_receipt', receipt_id=invoice.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye me-1"></i>View Receipt
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related invoices found</h5>
+                                <p class="text-muted">No invoices mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Organizations Tab -->
+                        <div class="tab-pane fade" id="organizations" role="tabpanel" aria-labelledby="organizations-tab">
+                            {% if related_organizations %}
+                            <div class="row">
+                                {% for org in related_organizations %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-secondary">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                {{ org.name }}
+                                                <span class="badge bg-secondary">{{ org.organization_type|capitalize }}</span>
+                                            </h6>
+                                            {% if org.data.get('contact_name') %}
+                                                <p class="mb-1"><i class="fas fa-user me-1"></i>{{ org.data.contact_name }}</p>
+                                            {% endif %}
+                                            {% if org.email %}
+                                                <p class="mb-1"><i class="fas fa-envelope me-1"></i>{{ org.email }}</p>
+                                            {% endif %}
+                                            <small class="text-muted">
+                                                Created: {{ org.created_at.strftime('%Y-%m-%d') if org.created_at else 'Unknown' }}
+                                            </small>
+                                            <div class="mt-2">
+                                                <a href="{{ url_for('edit_organization', org_id=org.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye me-1"></i>View Organization
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-building fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related organizations found</h5>
+                                <p class="text-muted">No organizations mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Calendar Events Tab -->
+                        <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
+                            {% if related_calendar_events %}
+                            <div class="row">
+                                {% for event in related_calendar_events %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-success">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                {{ event.title }}
+                                                <span class="badge bg-{{ 'secondary' if event.is_completed else 'success' }}">
+                                                    {{ 'Completed' if event.is_completed else 'Scheduled' }}
+                                                </span>
+                                            </h6>
+                                            {% if event.description %}
+                                                <p class="mb-1 text-muted">{{ event.description|truncate(100) }}</p>
+                                            {% endif %}
+                                            <p class="mb-1"><i class="fas fa-calendar me-1"></i>{{ event.start_time.strftime('%Y-%m-%d %H:%M') if event.start_time else 'No date' }}</p>
+                                            {% if event.data.get('location') %}
+                                                <p class="mb-1"><i class="fas fa-map-marker-alt me-1"></i>{{ event.data.location }}</p>
+                                            {% endif %}
+                                            <small class="text-muted">Type: {{ event.event_type|capitalize }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related calendar events found</h5>
+                                <p class="text-muted">No calendar events mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Notes Tab -->
+                        <div class="tab-pane fade" id="notes" role="tabpanel" aria-labelledby="notes-tab">
+                            {% if related_notes %}
+                            <div class="row">
+                                {% for note in related_notes %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-info">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ note.title }}</h6>
+                                            {% if note.content %}
+                                                <p class="mb-1 text-muted">{{ note.content|truncate(150) }}</p>
+                                            {% endif %}
+                                            <small class="text-muted">
+                                                Created: {{ note.created_at.strftime('%Y-%m-%d') if note.created_at else 'Unknown' }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-sticky-note fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related notes found</h5>
+                                <p class="text-muted">No notes mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Related Tasks Tab -->
+                        <div class="tab-pane fade" id="tasks" role="tabpanel" aria-labelledby="tasks-tab">
+                            {% if related_tasks %}
+                            <div class="row">
+                                {% for task in related_tasks %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-danger">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                {{ task.data.get('title', 'Task #' + task.id|string) }}
+                                                <span class="badge bg-{{ 'success' if task.status == 'completed' else 'warning' if task.status == 'processing' else 'danger' }}">
+                                                    {{ task.status|capitalize }}
+                                                </span>
+                                            </h6>
+                                            {% if task.data.get('description') %}
+                                                <p class="mb-1 text-muted">{{ task.data.description|truncate(100) }}</p>
+                                            {% endif %}
+                                            <p class="mb-1"><i class="fas fa-cog me-1"></i>{{ task.task_type|replace('_', ' ')|title }}</p>
+                                            <small class="text-muted">
+                                                Created: {{ task.created_at.strftime('%Y-%m-%d') if task.created_at else 'Unknown' }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No related tasks found</h5>
+                                <p class="text-muted">No tasks mention the person names associated with this user.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Object Details Modal (reuse from inventory) -->
+<div class="modal fade" id="objectDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="objectDetailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Object Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="objectDetailsSpinner" class="text-center">
+                    <div class="spinner-border text-light mb-3" role="status"></div>
+                    <p>Loading object details...</p>
+                </div>
+                <div id="objectDetailsContent" class="d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Reuse object details functionality from inventory page
+document.addEventListener('DOMContentLoaded', function() {
+    const objectDetailsModal = new bootstrap.Modal(document.getElementById('objectDetailsModal'));
+    const objectDetailsButtons = document.querySelectorAll('.view-object-details-btn');
+    
+    objectDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const objectId = this.getAttribute('data-object-id');
+            const objectName = this.getAttribute('data-object-name');
+            
+            // Show loading state
+            document.getElementById('objectDetailsSpinner').classList.remove('d-none');
+            document.getElementById('objectDetailsContent').classList.add('d-none');
+            document.getElementById('objectDetailsModalLabel').innerHTML = `<i class="fas fa-info-circle me-2"></i>Object Details: ${objectName}`;
+            
+            // Show the modal
+            objectDetailsModal.show();
+            
+            // Fetch object details
+            fetch(`/api/object-details/${objectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Hide spinner
+                    document.getElementById('objectDetailsSpinner').classList.add('d-none');
+                    
+                    if (data.success) {
+                        const obj = data.object;
+                        
+                        // Populate object details (simplified version)
+                        const detailsContent = document.getElementById('objectDetailsContent');
+                        detailsContent.innerHTML = generateSimpleObjectDetailsHTML(obj);
+                        detailsContent.classList.remove('d-none');
+                        
+                    } else {
+                        document.getElementById('objectDetailsContent').innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error loading object details: ${data.error}
+                            </div>
+                        `;
+                        document.getElementById('objectDetailsContent').classList.remove('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('objectDetailsSpinner').classList.add('d-none');
+                    document.getElementById('objectDetailsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            An error occurred while loading object details. Please try again.
+                        </div>
+                    `;
+                    document.getElementById('objectDetailsContent').classList.remove('d-none');
+                });
+        });
+    });
+    
+    function generateSimpleObjectDetailsHTML(obj) {
+        const data = obj.data || {};
+        
+        let html = `
+            <div class="row">
+                <div class="col-12">
+                    <h6 class="text-info mb-3"><i class="fas fa-tag me-2"></i>Basic Information</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Name:</strong></td><td>${data.name || 'Unnamed Object'}</td></tr>
+                        <tr><td><strong>Type:</strong></td><td><span class="badge bg-info">${obj.object_type}</span></td></tr>
+                        <tr><td><strong>Category:</strong></td><td>${data.category || 'Uncategorized'}</td></tr>
+                        <tr><td><strong>Description:</strong></td><td>${data.description || 'No description'}</td></tr>
+                        <tr><td><strong>Created:</strong></td><td>${obj.created_at ? new Date(obj.created_at).toLocaleDateString() : 'Unknown'}</td></tr>
+        `;
+        
+        if (data.contact_email) {
+            html += `<tr><td><strong>Email:</strong></td><td><a href="mailto:${data.contact_email}">${data.contact_email}</a></td></tr>`;
+        }
+        if (data.contact_phone) {
+            html += `<tr><td><strong>Phone:</strong></td><td><a href="tel:${data.contact_phone}">${data.contact_phone}</a></td></tr>`;
+        }
+        if (data.role) {
+            html += `<tr><td><strong>Role:</strong></td><td>${data.role}</td></tr>`;
+        }
+        
+        html += `</table></div></div>`;
+        return html;
+    }
+});
+</script>
+{% endblock %} 

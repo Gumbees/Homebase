@@ -23,7 +23,7 @@
                                        class="form-control" 
                                        id="contact_email" 
                                        name="contact_email" 
-                                       value="{{ organization.contact_info.email if organization.contact_info and organization.contact_info.email else '' }}"
+                                       value="{{ organization.data.email if organization.data and organization.data.email else '' }}"
                                        placeholder="contact@organization.com">
                             </div>
                             <div class="col-md-6 mb-3">
@@ -34,7 +34,7 @@
                                        class="form-control" 
                                        id="contact_phone" 
                                        name="contact_phone" 
-                                       value="{{ organization.contact_info.phone if organization.contact_info and organization.contact_info.phone else '' }}"
+                                       value="{{ organization.data.phone if organization.data and organization.data.phone else '' }}"
                                        placeholder="(555) 123-4567">
                             </div>
                         </div>
@@ -47,7 +47,7 @@
                                    class="form-control" 
                                    id="website" 
                                    name="website" 
-                                   value="{{ organization.contact_info.website if organization.contact_info and organization.contact_info.website else '' }}"
+                                   value="{{ organization.data.website if organization.data and organization.data.website else '' }}"
                                    placeholder="https://organization.com">
                         </div>
                         
@@ -59,7 +59,7 @@
                                       id="address" 
                                       name="address" 
                                       rows="3" 
-                                      placeholder="Street address, city, state, zip">{{ organization.contact_info.address if organization.contact_info and organization.contact_info.address else '' }}</textarea>
+                                      placeholder="Street address, city, state, zip">{{ organization.data.address if organization.data and organization.data.address else '' }}</textarea>
                         </div>
                         
                         <div class="mb-3">
@@ -68,14 +68,14 @@
                             </label>
                             <select class="form-select" id="business_type" name="business_type">
                                 <option value="">Select type...</option>
-                                <option value="retail" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'retail' else '' }}>Retail Store</option>
-                                <option value="restaurant" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'restaurant' else '' }}>Restaurant</option>
-                                <option value="grocery" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'grocery' else '' }}>Grocery Store</option>
-                                <option value="gas_station" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'gas_station' else '' }}>Gas Station</option>
-                                <option value="online" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'online' else '' }}>Online Store</option>
-                                <option value="service" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'service' else '' }}>Service Provider</option>
-                                <option value="utility" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'utility' else '' }}>Utility Company</option>
-                                <option value="other" {{ 'selected' if organization.metadata and organization.metadata.get('business_type') == 'other' else '' }}>Other</option>
+                                <option value="retail" {{ 'selected' if organization.data and organization.data.get('business_type') == 'retail' else '' }}>Retail Store</option>
+                                <option value="restaurant" {{ 'selected' if organization.data and organization.data.get('business_type') == 'restaurant' else '' }}>Restaurant</option>
+                                <option value="grocery" {{ 'selected' if organization.data and organization.data.get('business_type') == 'grocery' else '' }}>Grocery Store</option>
+                                <option value="gas_station" {{ 'selected' if organization.data and organization.data.get('business_type') == 'gas_station' else '' }}>Gas Station</option>
+                                <option value="online" {{ 'selected' if organization.data and organization.data.get('business_type') == 'online' else '' }}>Online Store</option>
+                                <option value="service" {{ 'selected' if organization.data and organization.data.get('business_type') == 'service' else '' }}>Service Provider</option>
+                                <option value="utility" {{ 'selected' if organization.data and organization.data.get('business_type') == 'utility' else '' }}>Utility Company</option>
+                                <option value="other" {{ 'selected' if organization.data and organization.data.get('business_type') == 'other' else '' }}>Other</option>
                             </select>
                         </div>
                         
@@ -87,7 +87,7 @@
                                       id="notes" 
                                       name="notes" 
                                       rows="4" 
-                                      placeholder="Any additional notes about this organization...">{{ organization.metadata.notes if organization.metadata and organization.metadata.get('notes') else '' }}</textarea>
+                                      placeholder="Any additional notes about this organization...">{{ organization.data.notes if organization.data and organization.data.get('notes') else '' }}</textarea>
                         </div>
                         
                         <!-- Enhanced: Vendor Names Management Section -->
@@ -104,11 +104,11 @@
                                 </div>
                                 
                                 <!-- Currently Linked Names -->
-                                {% if organization.metadata and organization.metadata.get('linked_vendor_names') %}
+                                {% if organization.data and organization.data.get('linked_vendor_names') %}
                                 <div class="mb-3">
                                     <strong>Currently Linked Names:</strong>
                                     <div class="mt-2">
-                                        {% for vendor_name in organization.metadata.linked_vendor_names %}
+                                        {% for vendor_name in organization.data.linked_vendor_names %}
                                         <span class="badge bg-success me-2 mb-1 p-2">
                                             <i class="fas fa-link me-1"></i>{{ vendor_name }}
                                             <button type="button" class="btn-close btn-close-white ms-2" 
@@ -128,7 +128,7 @@
                                               id="linked_vendor_names" 
                                               name="linked_vendor_names" 
                                               rows="3" 
-                                              placeholder="Enter vendor names separated by commas (e.g., Amazon, Amazon.com, AWS)">{% if organization.metadata and organization.metadata.get('linked_vendor_names') %}{{ organization.metadata.linked_vendor_names|join(', ') }}{% endif %}</textarea>
+                                              placeholder="Enter vendor names separated by commas (e.g., Amazon, Amazon.com, AWS)">{% if organization.data and organization.data.get('linked_vendor_names') %}{{ organization.data.linked_vendor_names|join(', ') }}{% endif %}</textarea>
                                     <div class="form-text">
                                         Enter vendor names separated by commas. These will be linked to this organization.
                                     </div>
@@ -212,10 +212,10 @@
                             </p>
                         </div>
                         <div class="col-md-6">
-                            {% if organization.metadata and organization.metadata.get('promoted_from_metadata') %}
+                            {% if organization.data and organization.data.get('promoted_from_metadata') %}
                                 <p><strong>Source:</strong> <span class="badge bg-info">Promoted from Metadata</span></p>
-                                {% if organization.metadata.get('promoted_at') %}
-                                    <p><strong>Promoted:</strong> {{ organization.metadata.promoted_at[:10] }}</p>
+                                {% if organization.data.get('promoted_at') %}
+                                    <p><strong>Promoted:</strong> {{ organization.data.promoted_at[:10] }}</p>
                                 {% endif %}
                             {% endif %}
                             

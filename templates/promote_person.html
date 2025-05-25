@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Promote Person to User - Homebase{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>Promote Person to User
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-info mb-3">
+                                <i class="fas fa-user me-2"></i>Person Details
+                            </h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Name:</strong></td>
+                                    <td>{{ person.data.name }}</td>
+                                </tr>
+                                {% if person.data.contact_email %}
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td>{{ person.data.contact_email }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if person.data.contact_phone %}
+                                <tr>
+                                    <td><strong>Phone:</strong></td>
+                                    <td>{{ person.data.contact_phone }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if person.data.role %}
+                                <tr>
+                                    <td><strong>Role:</strong></td>
+                                    <td>{{ person.data.role }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if person.data.description %}
+                                <tr>
+                                    <td><strong>Description:</strong></td>
+                                    <td>{{ person.data.description }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-warning mb-3">
+                                <i class="fas fa-info-circle me-2"></i>What happens when you promote?
+                            </h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Creates a digital identity (User account)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Links this person object to the user
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Enables dynamic linking of similar names
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Groups all related person objects together
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    {% if similar_users %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-users me-2"></i>
+                        <strong>Similar Users Found!</strong> We found {{ similar_users|length }} existing user(s) with similar names.
+                        You can link to an existing user or create a new one.
+                    </div>
+
+                    <h6 class="text-primary mb-3">
+                        <i class="fas fa-search me-2"></i>Similar Existing Users
+                    </h6>
+                    
+                    <div class="row mb-4">
+                        {% for user, confidence in similar_users %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-primary">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="card-title mb-1">
+                                                {{ user.display_name }}
+                                                <small class="text-muted">(@{{ user.username }})</small>
+                                            </h6>
+                                            {% if user.email %}
+                                                <p class="mb-1"><small class="text-muted">{{ user.email }}</small></p>
+                                            {% endif %}
+                                            {% if user.aliases %}
+                                                <div class="mt-2">
+                                                    <small class="text-muted">Also known as:</small><br>
+                                                    {% for alias in user.aliases[:3] %}
+                                                        <span class="badge bg-light text-dark me-1">{{ alias.alias_name }}</span>
+                                                    {% endfor %}
+                                                    {% if user.aliases|length > 3 %}
+                                                        <span class="badge bg-secondary">+{{ user.aliases|length - 3 }} more</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-success mb-2">
+                                                {{ "%.0f"|format(confidence * 100) }}% match
+                                            </span>
+                                            <br>
+                                            <form method="post" style="display: inline;">
+                                                <input type="hidden" name="action" value="link_existing">
+                                                <input type="hidden" name="user_id" value="{{ user.id }}">
+                                                <button type="submit" class="btn btn-sm btn-primary"
+                                                        onclick="return confirm('Link {{ person.data.name }} to existing user {{ user.display_name }}?')">
+                                                    <i class="fas fa-link me-1"></i>Link to This User
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="text-center mb-3">
+                        <span class="text-muted">- OR -</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="text-center">
+                        <h6 class="text-success mb-3">
+                            <i class="fas fa-user-plus me-2"></i>Create New User
+                        </h6>
+                        {% if not similar_users %}
+                        <p class="text-muted mb-3">
+                            No existing users found with similar names. A new user account will be created.
+                        </p>
+                        {% endif %}
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="action" value="create_new">
+                            <button type="submit" class="btn btn-success btn-lg"
+                                    onclick="return confirm('Create a new user account for {{ person.data.name }}?')">
+                                <i class="fas fa-user-plus me-2"></i>Create New User
+                            </button>
+                        </form>
+                    </div>
+
+                    <hr>
+
+                    <div class="text-center">
+                        <a href="{{ url_for('inventory') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -60,6 +60,17 @@ def convert_pdf_to_image(pdf_data):
                 # If only one page, use it directly
                 if len(images) == 1:
                     first_page = images[0]
+                    
+                    # Resize single page if it exceeds Claude's 8000 pixel limit
+                    max_dimension = 8000
+                    if first_page.width > max_dimension or first_page.height > max_dimension:
+                        # Calculate scale factor to fit within limits
+                        scale_factor = min(max_dimension / first_page.width, max_dimension / first_page.height)
+                        new_width = int(first_page.width * scale_factor)
+                        new_height = int(first_page.height * scale_factor)
+                        
+                        logger.info(f"Resizing single page from {first_page.width}x{first_page.height} to {new_width}x{new_height} for Claude compatibility")
+                        first_page = first_page.resize((new_width, new_height), Image.Resampling.LANCZOS)
                 else:
                     # Concatenate all pages vertically into one long image
                     logger.info(f"Concatenating {len(images)} pages into single image for analysis")
@@ -89,6 +100,9 @@ def convert_pdf_to_image(pdf_data):
                     
                     first_page = combined_image
                     logger.info(f"Created combined image: {max_width}x{total_height} pixels")
+                
+                # OpenAI can handle larger images, so no resizing needed
+                logger.info(f"Using original image size: {first_page.width}x{first_page.height} pixels for OpenAI processing")
                 
                 # Save the image to a buffer in JPEG format
                 buffer = io.BytesIO()
@@ -161,32 +175,28 @@ def convert_pdf_to_image(pdf_data):
         buffer.seek(0)
         return buffer.getvalue()
 
-def process_receipt_with_ai(image_data, filename, auto_analyze=False, auto_link=False, use_claude=True):
+def process_receipt_with_ai(image_data, filename, auto_analyze=False, auto_link=False, use_claude=None):
     """
     Process a receipt image with AI to extract data and optionally analyze line items.
-    Uses either Claude or OpenAI based on the use_claude parameter.
+    Now uses OpenAI exclusively for better image processing capabilities.
     
     Args:
         image_data: Binary image data
         filename: Original filename
         auto_analyze: Whether to analyze line items and suggest objects
         auto_link: Whether to try linking line items to existing objects
-        use_claude: Whether to use Claude AI (True) or OpenAI (False)
+        use_claude: Deprecated parameter - OpenAI is now used exclusively
         
     Returns:
         dict: Contains processed receipt data and analysis results
     """
-    # Import the relevant functions to avoid circular imports
-    from claude_utils import process_receipt_with_claude
+    # Import OpenAI functions
     from openai_utils import process_receipt_with_openai
     
-    logger.info(f"Processing receipt '{filename}' using {use_claude and 'Claude' or 'OpenAI'}")
+    logger.info(f"Processing receipt '{filename}' using OpenAI")
     
-    # Call the appropriate AI model
-    if use_claude:
-        return process_receipt_with_claude(image_data, filename, auto_analyze, auto_link)
-    else:
-        return process_receipt_with_openai(image_data, filename, auto_analyze, auto_link)
+    # Always use OpenAI now
+    return process_receipt_with_openai(image_data, filename, auto_analyze, auto_link)
 
 def extract_receipt_data_from_binary(image_data):
     """
@@ -942,10 +952,10 @@ def categorize_expense(description, amount, vendor=None):
             "error": str(e)
         }
 
-def should_asset_be_serialized(item_name, quantity, price=None, category=None, description=None, use_claude=True):
+def should_asset_be_serialized(item_name, quantity, price=None, category=None, description=None, use_claude=None):
     """
     Check if a particular asset should be serialized based on its characteristics.
-    Uses either Claude or OpenAI based on the use_claude parameter.
+    Now uses OpenAI exclusively for consistent decision-making.
     
     Args:
         item_name: Name or title of the asset
@@ -953,22 +963,18 @@ def should_asset_be_serialized(item_name, quantity, price=None, category=None, d
         price: Price of the item (optional)
         category: Category of the item (optional)
         description: Additional description of the item (optional)
-        use_claude: Whether to use Claude AI (True) or OpenAI (False)
+        use_claude: Deprecated parameter - OpenAI is now used exclusively
         
     Returns:
         dict: Contains assessment of whether asset should be serialized and confidence
     """
-    # Import the relevant functions to avoid circular imports
-    from claude_utils import should_asset_be_serialized_claude
+    # Import OpenAI functions
     from openai_utils import should_asset_be_serialized_openai
     
-    logger.info(f"Determining if asset '{item_name}' should be serialized using {use_claude and 'Claude' or 'OpenAI'}")
+    logger.info(f"Determining if asset '{item_name}' should be serialized using OpenAI")
     
-    # Call the appropriate AI model
-    if use_claude:
-        return should_asset_be_serialized_claude(item_name, quantity, price, category, description)
-    else:
-        return should_asset_be_serialized_openai(item_name, quantity, price, category, description)
+    # Always use OpenAI now
+    return should_asset_be_serialized_openai(item_name, quantity, price, category, description)
 
 
 def categorize_line_items(line_items, vendor=None):

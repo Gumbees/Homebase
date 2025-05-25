@@ -9,7 +9,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h2><i class="fas fa-camera me-2"></i>Photo Inventory</h2>
-                    <p class="text-muted">Take photos of objects for AI-powered inventory and valuation</p>
+                    <p class="text-muted">Take photos or upload images of objects for AI-powered inventory and valuation</p>
                 </div>
                 <div>
                     <a href="{{ url_for('inventory') }}" class="btn btn-outline-primary">
@@ -32,8 +32,27 @@
                         </div>
                         <div class="card-body">
                             <form method="post" enctype="multipart/form-data" id="photoInventoryForm">
-                                <!-- Photo Upload Section -->
+                                
+                                <!-- Capture Method Selection -->
                                 <div class="mb-4">
+                                    <label class="form-label">
+                                        <strong><i class="fas fa-camera me-2"></i>Capture Method</strong>
+                                    </label>
+                                    <div class="btn-group w-100" role="group" aria-label="Capture method">
+                                        <input type="radio" class="btn-check" name="capture_method" id="upload_method" checked>
+                                        <label class="btn btn-outline-primary" for="upload_method">
+                                            <i class="fas fa-upload me-2"></i>Upload Photo
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="capture_method" id="camera_method">
+                                        <label class="btn btn-outline-primary" for="camera_method">
+                                            <i class="fas fa-camera me-2"></i>Take Photo
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- File Upload Section -->
+                                <div id="upload-section" class="mb-4">
                                     <label for="object_photo" class="form-label">
                                         <strong><i class="fas fa-image me-2"></i>Object Photo</strong>
                                     </label>
@@ -41,16 +60,77 @@
                                            class="form-control" 
                                            id="object_photo" 
                                            name="object_photo" 
-                                           accept="image/*,application/pdf"
-                                           capture="environment"
-                                           required>
+                                           accept="image/*,application/pdf">
                                     <div class="form-text">
-                                        Take a clear photo showing the object from the best angle. Include any labels, model numbers, or distinguishing features.
+                                        Upload a clear photo showing the object from the best angle. Include any labels, model numbers, or distinguishing features.
+                                    </div>
+                                </div>
+
+                                <!-- Camera Section -->
+                                <div id="camera-section" class="mb-4 d-none">
+                                    <label class="form-label">
+                                        <strong><i class="fas fa-camera me-2"></i>Camera Capture</strong>
+                                    </label>
+                                    
+                                    <!-- Camera Controls -->
+                                    <div class="camera-controls mb-3">
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <button type="button" class="btn btn-success" id="start-camera">
+                                                <i class="fas fa-video me-2"></i>Start Camera
+                                            </button>
+                                            <button type="button" class="btn btn-primary d-none" id="capture-photo">
+                                                <i class="fas fa-camera me-2"></i>Take Photo
+                                            </button>
+                                            <button type="button" class="btn btn-warning d-none" id="retake-photo">
+                                                <i class="fas fa-redo me-2"></i>Retake
+                                            </button>
+                                            <button type="button" class="btn btn-secondary d-none" id="stop-camera">
+                                                <i class="fas fa-stop me-2"></i>Stop Camera
+                                            </button>
+                                            <select id="camera-select" class="form-select d-none" style="width: auto;">
+                                                <option value="">Select Camera</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     
-                                    <!-- Photo Preview -->
-                                    <div id="photoPreview" class="mt-3" style="display: none;">
-                                        <img id="previewImage" class="img-fluid rounded border" style="max-height: 300px;" alt="Preview">
+                                    <!-- Camera Preview -->
+                                    <div class="camera-container position-relative mb-3">
+                                        <video id="camera-preview" class="w-100 border rounded d-none" autoplay playsinline style="max-height: 400px;"></video>
+                                        <canvas id="photo-canvas" class="d-none"></canvas>
+                                        
+                                        <!-- Camera Guidelines Overlay -->
+                                        <div id="camera-guidelines" class="position-absolute top-0 start-0 w-100 h-100 d-none" style="pointer-events: none;">
+                                            <div class="position-absolute border border-info border-2 rounded" 
+                                                 style="top: 15%; left: 15%; width: 70%; height: 70%; border-style: dashed !important;">
+                                                <div class="position-absolute top-50 start-50 translate-middle text-info bg-dark px-2 py-1 rounded">
+                                                    <small><i class="fas fa-cube me-1"></i>Position object within frame</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Camera Status -->
+                                    <div id="camera-status" class="alert alert-info d-none">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <span id="camera-status-text">Ready to capture</span>
+                                    </div>
+                                    
+                                    <!-- Hidden input for camera-captured image -->
+                                    <input type="hidden" id="camera-image-data" name="camera_image_data">
+                                </div>
+                                
+                                <!-- Photo Preview -->
+                                <div id="photoPreview" class="mb-4" style="display: none;">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <span><i class="fas fa-eye me-2"></i>Photo Preview</span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-preview">
+                                                <i class="fas fa-times me-1"></i>Clear
+                                            </button>
+                                        </div>
+                                        <div class="card-body text-center">
+                                            <img id="previewImage" class="img-fluid rounded border" style="max-height: 300px;" alt="Preview">
+                                        </div>
                                     </div>
                                 </div>
 
@@ -105,16 +185,21 @@
                                     </div>
                                 </div>
 
-                                <!-- AI Provider Selection -->
+                                <!-- AI Processing Information -->
                                 <div class="mb-4">
-                                    <label for="ai_provider" class="form-label">
+                                    <label class="form-label">
                                         <strong>AI Analysis Provider</strong>
                                     </label>
-                                    <select class="form-select" id="ai_provider" name="ai_provider">
-                                        <option value="claude" selected>Claude (Anthropic) - Best for detailed analysis</option>
-                                        <option value="openai">OpenAI GPT - Good for general identification</option>
-                                        <option value="llm_studio">Local LLM - Privacy-focused option</option>
-                                    </select>
+                                    <div class="form-control border rounded p-3 bg-light">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-eye text-primary fa-2x me-3"></i>
+                                            <div>
+                                                <strong>OpenAI GPT-4o</strong><br>
+                                                <small class="text-muted">Advanced vision with QR/UPC detection</small>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" id="ai_provider" name="ai_provider" value="openai">
+                                    </div>
                                 </div>
 
                                 <!-- Submit Button -->
@@ -142,6 +227,7 @@
                                         <li><i class="fas fa-eye text-info me-2"></i>Show the whole object clearly</li>
                                         <li><i class="fas fa-tag text-primary me-2"></i>Include any labels or model numbers</li>
                                         <li><i class="fas fa-ruler text-secondary me-2"></i>Include size reference if possible</li>
+                                        <li><i class="fas fa-camera text-success me-2"></i>Take multiple angles if needed</li>
                                     </ul>
                                 </div>
                                 <div class="col-md-6">
@@ -151,6 +237,7 @@
                                         <li><i class="fas fa-cogs text-info me-2"></i>Brand, model, specifications</li>
                                         <li><i class="fas fa-chart-line text-warning me-2"></i>Condition assessment</li>
                                         <li><i class="fas fa-shield-alt text-danger me-2"></i>Insurance recommendations</li>
+                                        <li><i class="fas fa-cube text-primary me-2"></i>Object categorization</li>
                                     </ul>
                                 </div>
                             </div>
@@ -165,42 +252,241 @@
 
 {% block scripts %}
 <script>
-// Photo preview functionality
-document.getElementById('object_photo').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('previewImage').src = e.target.result;
-            document.getElementById('photoPreview').style.display = 'block';
+document.addEventListener('DOMContentLoaded', function() {
+    // Camera elements
+    const uploadMethodRadio = document.getElementById('upload_method');
+    const cameraMethodRadio = document.getElementById('camera_method');
+    const uploadSection = document.getElementById('upload-section');
+    const cameraSection = document.getElementById('camera-section');
+    const startCameraBtn = document.getElementById('start-camera');
+    const capturePhotoBtn = document.getElementById('capture-photo');
+    const retakePhotoBtn = document.getElementById('retake-photo');
+    const stopCameraBtn = document.getElementById('stop-camera');
+    const cameraSelect = document.getElementById('camera-select');
+    const cameraPreview = document.getElementById('camera-preview');
+    const photoCanvas = document.getElementById('photo-canvas');
+    const cameraGuidelines = document.getElementById('camera-guidelines');
+    const cameraStatus = document.getElementById('camera-status');
+    const cameraStatusText = document.getElementById('camera-status-text');
+    const cameraImageData = document.getElementById('camera-image-data');
+    const clearPreviewBtn = document.getElementById('clear-preview');
+    const fileInput = document.getElementById('object_photo');
+    const photoPreview = document.getElementById('photoPreview');
+    const previewImage = document.getElementById('previewImage');
+
+    let currentStream = null;
+    let availableCameras = [];
+
+    // Capture method toggle
+    uploadMethodRadio.addEventListener('change', function() {
+        if (this.checked) {
+            uploadSection.classList.remove('d-none');
+            cameraSection.classList.add('d-none');
+            stopCamera();
+            fileInput.required = true;
         }
-        reader.readAsDataURL(file);
-    } else {
-        document.getElementById('photoPreview').style.display = 'none';
+    });
+
+    cameraMethodRadio.addEventListener('change', function() {
+        if (this.checked) {
+            uploadSection.classList.add('d-none');
+            cameraSection.classList.remove('d-none');
+            fileInput.required = false;
+            fileInput.value = '';
+            getCameras();
+        }
+    });
+
+    // Get available cameras
+    async function getCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            availableCameras = devices.filter(device => device.kind === 'videoinput');
+            
+            cameraSelect.innerHTML = '<option value="">Select Camera</option>';
+            availableCameras.forEach((camera, index) => {
+                const option = document.createElement('option');
+                option.value = camera.deviceId;
+                option.textContent = camera.label || `Camera ${index + 1}`;
+                cameraSelect.appendChild(option);
+            });
+
+            if (availableCameras.length > 0) {
+                cameraSelect.classList.remove('d-none');
+                // Prefer back camera on mobile
+                const backCamera = availableCameras.find(camera => 
+                    camera.label.toLowerCase().includes('back') || 
+                    camera.label.toLowerCase().includes('environment')
+                );
+                if (backCamera) {
+                    cameraSelect.value = backCamera.deviceId;
+                }
+            }
+        } catch (error) {
+            console.error('Error getting cameras:', error);
+            showCameraStatus('Error accessing cameras', 'danger');
+        }
     }
-});
 
-// Form submission handling
-document.getElementById('photoInventoryForm').addEventListener('submit', function(e) {
-    const submitBtn = document.getElementById('submitBtn');
-    const originalText = submitBtn.innerHTML;
-    
-    // Disable button and show loading
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing with AI...';
-    
-    // Re-enable button after 30 seconds (in case of issues)
-    setTimeout(function() {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }, 30000);
-});
+    // Start camera
+    startCameraBtn.addEventListener('click', async function() {
+        try {
+            const constraints = {
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: 'environment' // Prefer back camera
+                }
+            };
 
-// Auto-resize textareas
-document.querySelectorAll('textarea').forEach(function(textarea) {
-    textarea.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = this.scrollHeight + 'px';
+            // Use selected camera if available
+            if (cameraSelect.value) {
+                constraints.video.deviceId = { exact: cameraSelect.value };
+            }
+
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            cameraPreview.srcObject = currentStream;
+            cameraPreview.classList.remove('d-none');
+            cameraGuidelines.classList.remove('d-none');
+
+            startCameraBtn.classList.add('d-none');
+            capturePhotoBtn.classList.remove('d-none');
+            stopCameraBtn.classList.remove('d-none');
+
+            showCameraStatus('Camera ready - Position your object in the frame', 'success');
+        } catch (error) {
+            console.error('Error starting camera:', error);
+            showCameraStatus('Unable to access camera. Please check permissions.', 'danger');
+        }
+    });
+
+    // Capture photo
+    capturePhotoBtn.addEventListener('click', function() {
+        const context = photoCanvas.getContext('2d');
+        photoCanvas.width = cameraPreview.videoWidth;
+        photoCanvas.height = cameraPreview.videoHeight;
+        
+        context.drawImage(cameraPreview, 0, 0);
+        const imageDataUrl = photoCanvas.toDataURL('image/jpeg', 0.9);
+        
+        // Store image data
+        cameraImageData.value = imageDataUrl;
+        
+        // Show preview
+        previewImage.src = imageDataUrl;
+        photoPreview.style.display = 'block';
+        
+        // Update UI
+        cameraPreview.classList.add('d-none');
+        cameraGuidelines.classList.add('d-none');
+        capturePhotoBtn.classList.add('d-none');
+        retakePhotoBtn.classList.remove('d-none');
+        
+        showCameraStatus('Photo captured successfully!', 'success');
+    });
+
+    // Retake photo
+    retakePhotoBtn.addEventListener('click', function() {
+        cameraPreview.classList.remove('d-none');
+        cameraGuidelines.classList.remove('d-none');
+        capturePhotoBtn.classList.remove('d-none');
+        retakePhotoBtn.classList.add('d-none');
+        
+        cameraImageData.value = '';
+        photoPreview.style.display = 'none';
+        
+        showCameraStatus('Ready to capture - Position your object in the frame', 'info');
+    });
+
+    // Stop camera
+    stopCameraBtn.addEventListener('click', stopCamera);
+
+    function stopCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        
+        cameraPreview.classList.add('d-none');
+        cameraGuidelines.classList.add('d-none');
+        cameraStatus.classList.add('d-none');
+        
+        startCameraBtn.classList.remove('d-none');
+        capturePhotoBtn.classList.add('d-none');
+        retakePhotoBtn.classList.add('d-none');
+        stopCameraBtn.classList.add('d-none');
+    }
+
+    function showCameraStatus(message, type = 'info') {
+        cameraStatus.className = `alert alert-${type}`;
+        cameraStatusText.textContent = message;
+        cameraStatus.classList.remove('d-none');
+    }
+
+    // Clear preview
+    clearPreviewBtn.addEventListener('click', function() {
+        photoPreview.style.display = 'none';
+        fileInput.value = '';
+        cameraImageData.value = '';
+        
+        if (cameraMethodRadio.checked) {
+            retakePhotoBtn.click();
+        }
+    });
+
+    // File preview functionality
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                photoPreview.style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        } else {
+            photoPreview.style.display = 'none';
+        }
+    });
+
+    // Form submission handling
+    document.getElementById('photoInventoryForm').addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitBtn');
+        const originalText = submitBtn.innerHTML;
+        const hasFile = fileInput.files[0];
+        const hasCameraImage = cameraImageData.value;
+        
+        if (!hasFile && !hasCameraImage) {
+            e.preventDefault();
+            alert('Please upload a photo or take one with the camera.');
+            return;
+        }
+        
+        // Stop camera if running
+        stopCamera();
+        
+        // Disable button and show loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing with AI...';
+        
+        // Re-enable button after 30 seconds (in case of issues)
+        setTimeout(function() {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }, 30000);
+    });
+
+    // Auto-resize textareas
+    document.querySelectorAll('textarea').forEach(function(textarea) {
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+    });
+
+    // Handle page unload to stop camera
+    window.addEventListener('beforeunload', function() {
+        stopCamera();
     });
 });
 </script>

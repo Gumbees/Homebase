@@ -26,6 +26,40 @@
   </div>
 </div>
 
+<!-- Object Details Modal -->
+<div class="modal fade" id="objectDetailsModal" tabindex="-1" aria-labelledby="objectDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="objectDetailsModalLabel">
+          <i class="fas fa-info-circle me-2"></i>Object Details
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="objectDetailsSpinner" class="text-center">
+          <div class="spinner-border text-light mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p>Loading object details...</p>
+        </div>
+        <div id="objectDetailsContent" class="d-none">
+          <!-- Object details will be populated here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <a href="#" class="btn btn-primary d-none" id="editObjectBtn">
+          <i class="fas fa-edit me-1"></i>Edit Object
+        </a>
+        <a href="#" class="btn btn-info d-none" id="viewReceiptBtn">
+          <i class="fas fa-receipt me-1"></i>View Receipt
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Delete Object Confirmation Modal -->
 <div class="modal fade" id="deleteObjectModal" tabindex="-1" aria-labelledby="deleteObjectModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -57,6 +91,37 @@
   </div>
 </div>
 
+<!-- Receipt Details Modal -->
+<div class="modal fade" id="receiptDetailsModal" tabindex="-1" aria-labelledby="receiptDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="receiptDetailsModalLabel">
+          <i class="fas fa-receipt me-2"></i>Receipt Details
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="receiptDetailsSpinner" class="text-center">
+          <div class="spinner-border text-light mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p>Loading receipt details...</p>
+        </div>
+        <div id="receiptDetailsContent" class="d-none">
+          <!-- Receipt details will be populated here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <a href="#" class="btn btn-primary d-none" id="goToReceiptBtn">
+          <i class="fas fa-external-link-alt me-1"></i>Go to Receipt Page
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card bg-dark shadow">
     <div class="card-header bg-dark d-flex justify-content-between align-items-center">
         <h2 class="mb-0">
@@ -74,16 +139,32 @@
     </div>
     <div class="card-body">
         <div class="row mb-4">
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <label for="object-type-filter" class="form-label">Filter by Type:</label>
                 <div class="input-group">
                     <select class="form-select" id="object-type-filter">
-                        <option value="all" {% if selected_type == 'all' %}selected{% endif %}>All Objects</option>
+                        <option value="all" {% if selected_type == 'all' %}selected{% endif %}>All Types</option>
                         {% for type in object_types %}
                         <option value="{{ type }}" {% if selected_type == type %}selected{% endif %}>{{ type|capitalize }}s</option>
                         {% endfor %}
                     </select>
-                    <button class="btn btn-primary" id="apply-filter">Filter</button>
                 </div>
+            </div>
+            <div class="col-md-4">
+                <label for="category-filter" class="form-label">Filter by Category:</label>
+                <div class="input-group">
+                    <select class="form-select" id="category-filter">
+                        <option value="all" {% if selected_category == 'all' %}selected{% endif %}>All Categories</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-primary w-100" id="apply-filter">
+                    <i class="fas fa-filter me-1"></i>Apply Filters
+                </button>
             </div>
             <div class="col-md-6">
                 <div class="btn-group float-end">
@@ -127,10 +208,14 @@
                                     {{ obj.object_type|capitalize }}
                                 </span>
                             </td>
-                            <td>{{ obj.data.name }}</td>
+                            <td>
+                                <a href="javascript:void(0)" class="view-object-details-btn text-decoration-none" data-object-id="{{ obj.id }}" data-object-name="{{ obj.data.name }}">
+                                    {{ obj.data.name }}
+                                </a>
+                            </td>
                             <td>
                                 {% if obj.data.category %}
-                                    <span class="badge bg-info">{{ obj.data.category }}</span>
+                                    <span class="badge bg-info">{{ obj.data.category|format_category }}</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Uncategorized</span>
                                 {% endif %}
@@ -163,16 +248,26 @@
                             </td>
                             <td>
                                 <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-info view-object-details-btn" data-object-id="{{ obj.id }}" data-object-name="{{ obj.data.name }}" title="View Details">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                    
                                     {% if obj.invoice_id %}
-                                    <a href="{{ url_for('view_receipt', receipt_id=obj.invoice_id) }}" class="btn btn-sm btn-primary" title="View Receipt">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
+                                    <button type="button" class="btn btn-sm btn-primary view-receipt-btn" data-receipt-id="{{ obj.invoice_id }}" title="View Receipt">
+                                        <i class="fas fa-receipt"></i>
+                                    </button>
                                     {% endif %}
                                     
                                     {% if obj.object_type == 'asset' %}
-                                    <button type="button" class="btn btn-sm btn-info re-evaluate-asset-btn" data-asset-id="{{ obj.id }}" title="Re-evaluate Asset">
+                                    <button type="button" class="btn btn-sm btn-secondary re-evaluate-asset-btn" data-asset-id="{{ obj.id }}" title="Re-evaluate Asset">
                                         <i class="fas fa-sync-alt"></i>
                                     </button>
+                                    {% endif %}
+                                    
+                                    {% if obj.object_type == 'person' %}
+                                    <a href="{{ url_for('promote_person_to_user', person_id=obj.id) }}" class="btn btn-sm btn-success" title="Promote to User">
+                                        <i class="fas fa-user-plus"></i>
+                                    </a>
                                     {% endif %}
                                     
                                     {% if obj.data.needs_approval and obj.object_type == 'asset' %}
@@ -224,7 +319,7 @@
                         <div class="card-body">
                             <h5 class="card-title">{{ obj.data.name }}</h5>
                             {% if obj.data.category %}
-                                <span class="badge bg-info mb-2">{{ obj.data.category }}</span>
+                                <span class="badge bg-info mb-2">{{ obj.data.category|format_category }}</span>
                             {% endif %}
                             <p class="card-text">
                                 {% if obj.data.description %}
@@ -262,15 +357,21 @@
                                 {% endif %}
                                 <div class="btn-group">
                                     {% if obj.invoice_id %}
-                                    <a href="{{ url_for('view_receipt', receipt_id=obj.invoice_id) }}" class="btn btn-sm btn-primary" title="View Receipt">
+                                    <button type="button" class="btn btn-sm btn-primary view-receipt-btn" data-receipt-id="{{ obj.invoice_id }}" title="View Receipt">
                                         <i class="fas fa-eye"></i>
-                                    </a>
+                                    </button>
                                     {% endif %}
                                     
                                     {% if obj.object_type == 'asset' %}
                                     <button type="button" class="btn btn-sm btn-info re-evaluate-asset-btn" data-asset-id="{{ obj.id }}" title="Re-evaluate Asset">
                                         <i class="fas fa-sync-alt"></i>
                                     </button>
+                                    {% endif %}
+                                    
+                                    {% if obj.object_type == 'person' %}
+                                    <a href="{{ url_for('promote_person_to_user', person_id=obj.id) }}" class="btn btn-sm btn-success" title="Promote to User">
+                                        <i class="fas fa-user-plus"></i>
+                                    </a>
                                     {% endif %}
                                     
                                     <!-- TODO: Implement object attachments functionality
@@ -307,151 +408,32 @@
     </div>
     <div class="card-body">
         <div id="inventory-analysis">
-            <py-script>
-import js
-from datetime import datetime
-
-# Get the objects data from Jinja
-objects_data = {{ objects_json|tojson }}
-
-if not objects_data:
-    js.document.getElementById("inventory-analysis").innerHTML = """
-        <div class="alert alert-info">
-            No objects available for analysis. Add objects to see statistics.
-        </div>
-    """
-else:
-    # Process the data
-    total_acquisition = sum(obj['data'].get('acquisition_cost', 0) for obj in objects_data 
-                           if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software'])
-    
-    total_estimated = sum(obj['data'].get('estimated_value', obj['data'].get('acquisition_cost', 0)) 
-                         for obj in objects_data 
-                         if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software'])
-    
-    # Count objects by type
-    object_types = {}
-    for obj in objects_data:
-        obj_type = obj['object_type']
-        if obj_type in object_types:
-            object_types[obj_type] += 1
-        else:
-            object_types[obj_type] = 1
-    
-    # Count objects by category
-    categories = {}
-    for obj in objects_data:
-        # Get object value (use estimated_value if available, otherwise acquisition_cost)
-        if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software']:
-            obj_value = obj['data'].get('estimated_value', obj['data'].get('acquisition_cost', 0))
-        else:
-            obj_value = 0
-        
-        category = obj['data'].get('category', 'Uncategorized')
-        if category in categories:
-            categories[category] += 1
-            categories[f"{category}_value"] = categories.get(f"{category}_value", 0) + obj_value
-        else:
-            categories[category] = 1
-            categories[f"{category}_value"] = obj_value
-    
-    # Create HTML for the analysis
-    html = f"""
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Total Objects</h6>
-                    <h2 class="display-5">{len(objects_data)}</h2>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Total Objects</h6>
+                            <h2 class="display-5">{{ objects|length }}</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Categories</h6>
+                            <h2 class="display-5">{{ objects | map(attribute='data.category') | unique | list | length }}</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Object Types</h6>
+                            <h2 class="display-5">{{ objects | map(attribute='object_type') | unique | list | length }}</h2>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Total Value</h6>
-                    <h2 class="display-5">${total_estimated:.2f}</h2>
-                    <small class="text-muted">${total_acquisition:.2f} original cost</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card h-100 bg-secondary">
-                <div class="card-body text-center">
-                    <h6 class="card-title">Avg Value (Valued Items)</h6>
-                    <h2 class="display-5">${(total_estimated / max(1, sum(1 for obj in objects_data if obj['object_type'] in ['asset', 'component', 'consumable', 'service', 'software']))):.2f}</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mt-4">
-        <div class="col-md-6 mb-3">
-            <h5>Objects by Type</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-dark">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th class="text-end">Count</th>
-                            <th class="text-end">Percentage</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    # Add rows for each object type
-    for obj_type, count in sorted(object_types.items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / len(objects_data)) * 100
-        html += f"""
-                <tr>
-                    <td>{obj_type.capitalize()}</td>
-                    <td class="text-end">{count}</td>
-                    <td class="text-end">{percentage:.1f}%</td>
-                </tr>
-        """
-    
-    html += """
-                </tbody>
-            </table>
-        </div>
-    </div>
-        
-    <div class="col-md-6 mb-3">
-        <h5>Objects by Category</h5>
-        <div class="table-responsive">
-            <table class="table table-sm table-dark">
-                <thead>
-                    <tr>
-                        <th>Category</th>
-                        <th class="text-end">Count</th>
-                        <th class="text-end">Total Value</th>
-                    </tr>
-                </thead>
-                <tbody>
-    """
-    
-    # Add rows for each category
-    for category in sorted(categories.keys()):
-        if not category.endswith('_value'):  # Skip the value entries
-            html += f"""
-                    <tr>
-                        <td>{category}</td>
-                        <td class="text-end">{categories[category]}</td>
-                        <td class="text-end">${categories.get(f"{category}_value", 0):.2f}</td>
-                    </tr>
-            """
-    
-    html += """
-                </tbody>
-            </table>
-        </div>
-    </div>
-    </div>
-    """
-    
-    js.document.getElementById("inventory-analysis").innerHTML = html
-            </py-script>
         </div>
     </div>
 </div>
@@ -459,6 +441,8 @@ else:
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Inventory summary is now generated server-side in the template
+    
     // Object action functionality
     const approveButtons = document.querySelectorAll('.approve-asset-btn');
     const rejectButtons = document.querySelectorAll('.reject-asset-btn');
@@ -490,7 +474,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handler for filter button
     applyFilterBtn.addEventListener('click', function() {
         const objectType = objectTypeFilter.value;
-        window.location.href = `/inventory?object_type=${objectType}`;
+        const category = document.getElementById('category-filter').value;
+        
+        let url = '/inventory?';
+        const params = [];
+        
+        if (objectType !== 'all') {
+            params.push(`object_type=${objectType}`);
+        }
+        if (category !== 'all') {
+            params.push(`category=${encodeURIComponent(category)}`);
+        }
+        
+        url += params.join('&');
+        window.location.href = url;
     });
     
     // Handler for view toggle buttons
@@ -682,6 +679,979 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteObjectModal.show();
         });
     });
+
+    // Handler for view object details buttons
+    const objectDetailsModal = new bootstrap.Modal(document.getElementById('objectDetailsModal'));
+    const objectDetailsButtons = document.querySelectorAll('.view-object-details-btn');
+    
+    // Handler for view receipt buttons
+    const receiptDetailsModal = new bootstrap.Modal(document.getElementById('receiptDetailsModal'));
+    const receiptDetailsButtons = document.querySelectorAll('.view-receipt-btn');
+    
+    objectDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const objectId = this.getAttribute('data-object-id');
+            const objectName = this.getAttribute('data-object-name');
+            
+            // Show loading state
+            document.getElementById('objectDetailsSpinner').classList.remove('d-none');
+            document.getElementById('objectDetailsContent').classList.add('d-none');
+            document.getElementById('objectDetailsModalLabel').innerHTML = `<i class="fas fa-info-circle me-2"></i>Object Details: ${objectName}`;
+            
+            // Reset footer buttons
+            document.getElementById('editObjectBtn').classList.add('d-none');
+            document.getElementById('viewReceiptBtn').classList.add('d-none');
+            
+            // Show the modal
+            objectDetailsModal.show();
+            
+            // Fetch object details
+            fetch(`/api/object-details/${objectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Hide spinner
+                    document.getElementById('objectDetailsSpinner').classList.add('d-none');
+                    
+                    if (data.success) {
+                        const obj = data.object;
+                        
+                        // Populate object details
+                        const detailsContent = document.getElementById('objectDetailsContent');
+                        detailsContent.innerHTML = generateObjectDetailsHTML(obj);
+                        detailsContent.classList.remove('d-none');
+                        
+                        // Show footer buttons if applicable
+                        if (obj.invoice_id) {
+                            const viewReceiptBtn = document.getElementById('viewReceiptBtn');
+                            viewReceiptBtn.href = `/view-receipt/${obj.invoice_id}`;
+                            viewReceiptBtn.classList.remove('d-none');
+                        }
+                        
+                        // TODO: Add edit functionality
+                        // const editObjectBtn = document.getElementById('editObjectBtn');
+                        // editObjectBtn.href = `/edit_object/${obj.id}`;
+                        // editObjectBtn.classList.remove('d-none');
+                        
+                    } else {
+                        document.getElementById('objectDetailsContent').innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error loading object details: ${data.error}
+                            </div>
+                        `;
+                        document.getElementById('objectDetailsContent').classList.remove('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('objectDetailsSpinner').classList.add('d-none');
+                    document.getElementById('objectDetailsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            An error occurred while loading object details. Please try again.
+                        </div>
+                    `;
+                    document.getElementById('objectDetailsContent').classList.remove('d-none');
+                });
+        });
+    });
+    
+    // Handler for receipt detail buttons
+    receiptDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            
+            // Show loading state
+            document.getElementById('receiptDetailsSpinner').classList.remove('d-none');
+            document.getElementById('receiptDetailsContent').classList.add('d-none');
+            document.getElementById('receiptDetailsModalLabel').innerHTML = '<i class="fas fa-receipt me-2"></i>Receipt Details';
+            
+            // Reset footer button
+            document.getElementById('goToReceiptBtn').classList.add('d-none');
+            
+            // Show the modal
+            receiptDetailsModal.show();
+            
+            // Fetch receipt details
+            fetch(`/api/receipt-details/${receiptId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Hide spinner
+                    document.getElementById('receiptDetailsSpinner').classList.add('d-none');
+                    
+                    if (data.success) {
+                        const receipt = data.receipt;
+                        
+                        // Populate receipt details
+                        const detailsContent = document.getElementById('receiptDetailsContent');
+                        detailsContent.innerHTML = generateReceiptDetailsHTML(receipt);
+                        detailsContent.classList.remove('d-none');
+                        
+                        // Show footer button
+                        const goToReceiptBtn = document.getElementById('goToReceiptBtn');
+                        goToReceiptBtn.href = `/view-receipt/${receipt.id}`;
+                        goToReceiptBtn.classList.remove('d-none');
+                        
+                        // Update modal title
+                        document.getElementById('receiptDetailsModalLabel').innerHTML = `<i class="fas fa-receipt me-2"></i>Receipt: ${receipt.invoice_number}`;
+                        
+                    } else {
+                        document.getElementById('receiptDetailsContent').innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error loading receipt details: ${data.error}
+                            </div>
+                        `;
+                        document.getElementById('receiptDetailsContent').classList.remove('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('receiptDetailsSpinner').classList.add('d-none');
+                    document.getElementById('receiptDetailsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            An error occurred while loading receipt details. Please try again.
+                        </div>
+                    `;
+                    document.getElementById('receiptDetailsContent').classList.remove('d-none');
+                });
+        });
+    });
+
+    // Function to generate object details HTML
+    function generateObjectDetailsHTML(obj) {
+        const data = obj.data || {};
+        const derivedInfo = obj.derived_info || {};
+        
+        let html = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-info mb-3"><i class="fas fa-tag me-2"></i>Basic Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Name:</strong></td>
+                            <td>${data.name || 'Unnamed Object'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Type:</strong></td>
+                            <td><span class="badge ${getObjectTypeBadgeClass(obj.object_type)}">${obj.object_type}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Category:</strong></td>
+                            <td>${data.category ? `<span class="badge bg-info">${data.category}</span>` : '<span class="text-muted">Uncategorized</span>'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Description:</strong></td>
+                            <td>${data.description || '<span class="text-muted">No description</span>'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Created:</strong></td>
+                            <td>${obj.created_at ? new Date(obj.created_at).toLocaleDateString() : 'Unknown'}</td>
+                        </tr>
+                        ${derivedInfo.age_display ? `
+                        <tr>
+                            <td><strong>Age:</strong></td>
+                            <td>${derivedInfo.age_display}</td>
+                        </tr>
+                        ` : ''}
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-info mb-3"><i class="fas fa-dollar-sign me-2"></i>Financial Information</h6>
+                    <table class="table table-sm">
+                        ${data.acquisition_cost ? `
+                        <tr>
+                            <td><strong>Acquisition Cost:</strong></td>
+                            <td>$${parseFloat(data.acquisition_cost).toFixed(2)}</td>
+                        </tr>
+                        ` : ''}
+                        ${data.estimated_value ? `
+                        <tr>
+                            <td><strong>Current Value:</strong></td>
+                            <td>$${parseFloat(data.estimated_value).toFixed(2)}</td>
+                        </tr>
+                        ` : ''}
+                        ${derivedInfo.depreciation ? `
+                        <tr>
+                            <td><strong>Depreciation:</strong></td>
+                            <td>$${derivedInfo.depreciation.amount.toFixed(2)} (${derivedInfo.depreciation.percentage.toFixed(1)}%)</td>
+                        </tr>
+                        ` : ''}
+                        ${data.acquisition_date ? `
+                        <tr>
+                            <td><strong>Acquisition Date:</strong></td>
+                            <td>${data.acquisition_date}</td>
+                        </tr>
+                        ` : ''}
+                        ${data.vendor ? `
+                        <tr>
+                            <td><strong>Vendor:</strong></td>
+                            <td>${data.vendor}</td>
+                        </tr>
+                        ` : ''}
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        // Add type-specific information
+        if (obj.object_type === 'consumable') {
+            html += generateConsumableDetails(data, derivedInfo);
+        } else if (obj.object_type === 'asset') {
+            html += generateAssetDetails(data);
+        } else if (obj.object_type === 'person') {
+            html += generatePersonDetails(data, obj.id);
+        } else if (obj.object_type === 'pet') {
+            html += generatePetDetails(data);
+        }
+        
+        // Add dynamic metadata (fields not covered by type-specific sections)
+        html += generateDynamicMetadata(data, obj.object_type);
+        
+        // Add invoice information if available
+        if (obj.invoice) {
+            html += generateInvoiceDetails(obj.invoice);
+        }
+        
+        // Add related events if available
+        if (obj.related_events && obj.related_events.length > 0) {
+            html += generateRelatedEventsDetails(obj.related_events);
+        }
+        
+        // Add attachments if available
+        if (obj.attachments && obj.attachments.length > 0) {
+            html += generateAttachmentsDetails(obj.attachments);
+        }
+        
+        return html;
+    }
+    
+    function getObjectTypeBadgeClass(objectType) {
+        const classes = {
+            'asset': 'bg-primary',
+            'consumable': 'bg-success',
+            'component': 'bg-warning text-dark',
+            'person': 'bg-info text-dark',
+            'pet': 'bg-light text-dark',
+            'service': 'bg-danger',
+            'software': 'bg-secondary'
+        };
+        return classes[objectType] || 'bg-dark';
+    }
+    
+    function generateConsumableDetails(data, derivedInfo) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-success mb-3"><i class="fas fa-box me-2"></i>Consumable Details</h6>
+                    <table class="table table-sm">
+        `;
+        
+        if (data.current_stock !== undefined) {
+            const stockClass = derivedInfo.stock_status === 'low' ? 'text-warning' : 'text-success';
+            html += `
+                <tr>
+                    <td><strong>Current Stock:</strong></td>
+                    <td><span class="${stockClass}">${data.current_stock}</span></td>
+                </tr>
+            `;
+        }
+        
+        if (data.reorder_threshold !== undefined) {
+            html += `
+                <tr>
+                    <td><strong>Reorder Threshold:</strong></td>
+                    <td>${data.reorder_threshold}</td>
+                </tr>
+            `;
+        }
+        
+        if (data.expiration_date) {
+            const expirationClass = derivedInfo.expiration ? 
+                (derivedInfo.expiration.status === 'expired' ? 'text-danger' : 
+                 derivedInfo.expiration.status === 'expiring_soon' ? 'text-warning' : 'text-success') : '';
+            html += `
+                <tr>
+                    <td><strong>Expiration Date:</strong></td>
+                    <td><span class="${expirationClass}">${data.expiration_date}</span></td>
+                </tr>
+            `;
+            if (derivedInfo.expiration) {
+                html += `
+                    <tr>
+                        <td><strong>Days Until Expiration:</strong></td>
+                        <td><span class="${expirationClass}">${derivedInfo.expiration.days_until} days</span></td>
+                    </tr>
+                `;
+            }
+        }
+        
+        html += `</table></div></div>`;
+        return html;
+    }
+    
+    function generateAssetDetails(data) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-primary mb-3"><i class="fas fa-desktop me-2"></i>Asset Details</h6>
+                    <table class="table table-sm">
+        `;
+        
+        if (data.manufacturer) {
+            html += `
+                <tr>
+                    <td><strong>Manufacturer:</strong></td>
+                    <td>${data.manufacturer}</td>
+                </tr>
+            `;
+        }
+        
+        if (data.model) {
+            html += `
+                <tr>
+                    <td><strong>Model:</strong></td>
+                    <td>${data.model}</td>
+                </tr>
+            `;
+        }
+        
+        if (data.serial_number) {
+            html += `
+                <tr>
+                    <td><strong>Serial Number:</strong></td>
+                    <td><code>${data.serial_number}</code></td>
+                </tr>
+            `;
+        }
+        
+        if (data.useful_life_years) {
+            html += `
+                <tr>
+                    <td><strong>Useful Life:</strong></td>
+                    <td>${data.useful_life_years} years</td>
+                </tr>
+            `;
+        }
+        
+        html += `</table></div></div>`;
+        return html;
+    }
+    
+    function generatePersonDetails(data, objectId) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-info mb-3"><i class="fas fa-user me-2"></i>Person Details</h6>
+                    <table class="table table-sm">
+        `;
+        
+        if (data.contact_email) {
+            html += `
+                <tr>
+                    <td><strong>Email:</strong></td>
+                    <td><a href="mailto:${data.contact_email}">${data.contact_email}</a></td>
+                </tr>
+            `;
+        }
+        
+        if (data.contact_phone) {
+            html += `
+                <tr>
+                    <td><strong>Phone:</strong></td>
+                    <td><a href="tel:${data.contact_phone}">${data.contact_phone}</a></td>
+                </tr>
+            `;
+        }
+        
+        if (data.address) {
+            html += `
+                <tr>
+                    <td><strong>Address:</strong></td>
+                    <td>${data.address}</td>
+                </tr>
+            `;
+        }
+        
+        if (data.role) {
+            html += `
+                <tr>
+                    <td><strong>Role:</strong></td>
+                    <td>${data.role}</td>
+                </tr>
+            `;
+        }
+        
+        html += `</table>
+                 <div class="mt-3">
+                     <a href="/promote-person-to-user/${objectId}" class="btn btn-success">
+                         <i class="fas fa-user-plus me-1"></i>Promote to User
+                     </a>
+                 </div>
+                 </div></div>`;
+        return html;
+    }
+    
+    function generatePetDetails(data) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-warning mb-3"><i class="fas fa-paw me-2"></i>Pet Details</h6>
+                    <table class="table table-sm">
+        `;
+        
+        if (data.breed) {
+            html += `
+                <tr>
+                    <td><strong>Breed:</strong></td>
+                    <td>${data.breed}</td>
+                </tr>
+            `;
+        }
+        
+        if (data.birth_date) {
+            html += `
+                <tr>
+                    <td><strong>Birth Date:</strong></td>
+                    <td>${data.birth_date}</td>
+                </tr>
+            `;
+        }
+        
+        html += `</table></div></div>`;
+        return html;
+    }
+    
+    function generateInvoiceDetails(invoice) {
+        return `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-warning mb-3"><i class="fas fa-receipt me-2"></i>Purchase Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Invoice Number:</strong></td>
+                            <td>${invoice.invoice_number}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vendor:</strong></td>
+                            <td>${invoice.vendor}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Date:</strong></td>
+                            <td>${invoice.date}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total Amount:</strong></td>
+                            <td>$${parseFloat(invoice.total_amount).toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td><span class="badge ${invoice.is_paid ? 'bg-success' : 'bg-warning'}">${invoice.is_paid ? 'Paid' : 'Unpaid'}</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
+    function generateDynamicMetadata(data, objectType) {
+        // Skip standard fields that are handled elsewhere
+        const standardFields = new Set([
+            'name', 'description', 'category', 'categories', 'acquisition_cost', 'estimated_value',
+            'acquisition_date', 'vendor', 'manufacturer', 'model', 'serial_number', 'useful_life_years',
+            'current_stock', 'expiration_date', 'shelf_life', 'track_stock', 'reorder_threshold',
+            'subscription_renewal', 'contact_email', 'contact_phone', 'address', 'role', 'breed',
+            'birth_date', 'quantity', 'parent_id', 'specifications'
+        ]);
+        
+        // Extract dynamic fields
+        const dynamicFields = {};
+        for (const [key, value] of Object.entries(data)) {
+            if (!standardFields.has(key) && value !== null && value !== undefined && value !== '') {
+                dynamicFields[key] = value;
+            }
+        }
+        
+        if (Object.keys(dynamicFields).length === 0) {
+            return '';
+        }
+        
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-warning mb-3"><i class="fas fa-cogs me-2"></i>Additional Metadata</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark">
+        `;
+        
+        // Sort fields for better display
+        const sortedFields = Object.entries(dynamicFields).sort(([a], [b]) => a.localeCompare(b));
+        
+        for (const [key, value] of sortedFields) {
+            let displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            let displayValue = value;
+            
+            // Special handling for different value types
+            if (typeof value === 'boolean') {
+                displayValue = value ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-danger">No</span>';
+            } else if (typeof value === 'object') {
+                if (Array.isArray(value)) {
+                    displayValue = value.join(', ');
+                } else {
+                    displayValue = JSON.stringify(value, null, 2);
+                    if (displayValue.length > 100) {
+                        displayValue = `<details><summary>Click to expand</summary><pre class="text-light mt-2">${displayValue}</pre></details>`;
+                    } else {
+                        displayValue = `<code class="text-light">${displayValue}</code>`;
+                    }
+                }
+            } else if (typeof value === 'string') {
+                // Check for URLs
+                if (value.startsWith('http://') || value.startsWith('https://')) {
+                    displayValue = `<a href="${value}" target="_blank" class="text-info">${value}</a>`;
+                }
+                // Check for email addresses
+                else if (value.includes('@') && value.includes('.')) {
+                    displayValue = `<a href="mailto:${value}" class="text-info">${value}</a>`;
+                }
+                // Check for phone numbers
+                else if (/^\+?[\d\s\-\(\)]+$/.test(value) && value.length > 7) {
+                    displayValue = `<a href="tel:${value}" class="text-info">${value}</a>`;
+                }
+                // Long text gets truncated
+                else if (value.length > 100) {
+                    displayValue = `<details><summary>${value.substring(0, 100)}...</summary><p class="mt-2">${value}</p></details>`;
+                }
+            }
+            
+            // Highlight special event-related fields
+            let rowClass = '';
+            if (['confirmation_code', 'qr_code', 'event_related', 'is_event_ticket'].includes(key)) {
+                rowClass = 'table-warning';
+            }
+            
+            html += `
+                <tr class="${rowClass}">
+                    <td style="width: 30%"><strong>${displayKey}:</strong></td>
+                    <td>${displayValue}</td>
+                </tr>
+            `;
+        }
+        
+        html += `
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return html;
+    }
+    
+    function generateRelatedEventsDetails(events) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-info mb-3"><i class="fas fa-calendar-alt me-2"></i>Related Events (${events.length})</h6>
+                    <div class="list-group">
+        `;
+        
+        events.forEach(event => {
+            const eventDate = new Date(event.start_time);
+            const isUpcoming = eventDate > new Date();
+            const isPastDue = eventDate < new Date();
+            
+            let badgeClass = 'bg-primary';
+            let statusIcon = 'fa-calendar';
+            let statusText = 'Scheduled';
+            
+            if (isPastDue) {
+                badgeClass = 'bg-secondary';
+                statusIcon = 'fa-history';
+                statusText = 'Past';
+            } else if (isUpcoming) {
+                const daysUntil = Math.ceil((eventDate - new Date()) / (1000 * 60 * 60 * 24));
+                if (daysUntil <= 7) {
+                    badgeClass = 'bg-warning';
+                    statusIcon = 'fa-clock';
+                    statusText = 'Upcoming';
+                } else {
+                    badgeClass = 'bg-info';
+                    statusIcon = 'fa-calendar-plus';
+                    statusText = 'Future';
+                }
+            }
+            
+            html += `
+                <div class="list-group-item bg-dark border-secondary">
+                    <div class="d-flex w-100 justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                <i class="fas ${statusIcon} me-2"></i>
+                                ${event.title}
+                                <span class="badge ${badgeClass} ms-2">${statusText}</span>
+                            </h6>
+                            <p class="mb-1 text-muted">${event.description || 'No description provided'}</p>
+                            <div class="mt-2">
+                                <small class="text-info">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    ${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString()}
+                                </small>
+                                <br>
+                                <small class="text-muted">
+                                    Type: ${event.event_type} | 
+                                    Relationship: ${event.relationship_type.replace(/_/g, ' ')}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewEventInCalendar(${event.id})">
+                                <i class="fas fa-external-link-alt me-1"></i>View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div></div></div>`;
+        return html;
+    }
+    
+    function generateAttachmentsDetails(attachments) {
+        let html = `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="text-secondary mb-3"><i class="fas fa-paperclip me-2"></i>Attachments & Digital Assets (${attachments.length})</h6>
+                    <div class="list-group">
+        `;
+        
+        attachments.forEach(attachment => {
+            // Special handling for different attachment types
+            let iconClass = 'fa-paperclip';
+            let badgeClass = 'bg-secondary';
+            let displayContent = '';
+            
+            if (attachment.attachment_type === 'qr_code') {
+                iconClass = 'fa-qrcode';
+                badgeClass = 'bg-primary';
+                // Try to display QR code content if it's text
+                if (attachment.ai_analysis_result && (attachment.ai_analysis_result.content || attachment.ai_analysis_result.data)) {
+                    displayContent = `
+                        <div class="mt-2 p-2 bg-light text-dark rounded">
+                            <strong>QR Code Data:</strong><br>
+                            <code class="text-dark">${attachment.ai_analysis_result.content || attachment.ai_analysis_result.data}</code>
+                        </div>
+                    `;
+                }
+            } else if (attachment.attachment_type === 'qr_code_image') {
+                iconClass = 'fa-qrcode';
+                badgeClass = 'bg-success';
+                displayContent = `
+                    <div class="mt-2 p-2 bg-success text-white rounded">
+                        <strong><i class="fas fa-crop me-1"></i>AI-Cropped QR Code Image</strong><br>
+                        <small>OpenAI extracted and cropped this QR code from the receipt</small>
+                    </div>
+                `;
+            } else if (attachment.attachment_type === 'upc_code') {
+                iconClass = 'fa-barcode';
+                badgeClass = 'bg-warning';
+                // Try to display UPC code data
+                if (attachment.ai_analysis_result && attachment.ai_analysis_result.data) {
+                    displayContent = `
+                        <div class="mt-2 p-2 bg-warning text-dark rounded">
+                            <strong>UPC/Barcode:</strong><br>
+                            <code class="text-dark fs-5">${attachment.ai_analysis_result.data}</code>
+                        </div>
+                    `;
+                }
+            } else if (attachment.attachment_type === 'upc_code_image') {
+                iconClass = 'fa-barcode';
+                badgeClass = 'bg-info';
+                displayContent = `
+                    <div class="mt-2 p-2 bg-info text-white rounded">
+                        <strong><i class="fas fa-crop me-1"></i>AI-Cropped UPC/Barcode Image</strong><br>
+                        <small>OpenAI extracted and cropped this barcode from the receipt</small>
+                    </div>
+                `;
+            } else if (attachment.attachment_type === 'confirmation_code') {
+                iconClass = 'fa-key';
+                badgeClass = 'bg-warning';
+                // Try to display confirmation code
+                if (attachment.ai_analysis_result && attachment.ai_analysis_result.code) {
+                    displayContent = `
+                        <div class="mt-2 p-2 bg-warning text-dark rounded">
+                            <strong>Confirmation Code:</strong><br>
+                            <code class="text-dark fs-5">${attachment.ai_analysis_result.code}</code>
+                        </div>
+                    `;
+                }
+            } else if (attachment.attachment_type === 'digital_ticket') {
+                iconClass = 'fa-ticket-alt';
+                badgeClass = 'bg-success';
+            } else if (attachment.file_type && attachment.file_type.startsWith('image/')) {
+                iconClass = 'fa-image';
+                badgeClass = 'bg-info';
+            }
+            
+            // Check if attachment can be viewed
+            const canView = attachment.file_type && (
+                attachment.file_type.startsWith('image/') || 
+                attachment.file_type.includes('pdf') ||
+                attachment.attachment_type === 'qr_code' ||
+                attachment.attachment_type === 'qr_code_image' ||
+                attachment.attachment_type === 'upc_code' ||
+                attachment.attachment_type === 'upc_code_image' ||
+                attachment.attachment_type === 'confirmation_code'
+            );
+            
+            html += `
+                <div class="list-group-item bg-dark border-secondary">
+                    <div class="d-flex w-100 justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                <i class="fas ${iconClass} me-2"></i>
+                                ${attachment.filename}
+                                <span class="badge ${badgeClass} ms-2">${attachment.attachment_type || 'File'}</span>
+                                ${canView ? `
+                                    <a href="/view-object-attachment/${attachment.id}" target="_blank" class="btn btn-sm btn-outline-light ms-2">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                ` : ''}
+                            </h6>
+                            ${attachment.description ? `<p class="mb-1 text-muted">${attachment.description}</p>` : ''}
+                            ${displayContent}
+                        </div>
+                        <small class="text-muted">${attachment.file_type}</small>
+                    </div>
+                    <small class="text-muted">
+                        Uploaded: ${attachment.upload_date ? new Date(attachment.upload_date).toLocaleDateString() : 'Unknown'}
+                        ${attachment.ai_analyzed ? ' | <span class="text-success"><i class="fas fa-robot me-1"></i>AI Analyzed</span>' : ''}
+                    </small>
+                </div>
+            `;
+        });
+        
+        html += `</div></div></div>`;
+        return html;
+    }
+    
+    // Navigation function to view events in calendar
+    function viewEventInCalendar(eventId) {
+        // Navigate to calendar and highlight the specific event
+        window.location.href = `/calendar?highlight=${eventId}`;
+    }
+    
+    // Generate inventory summary
+    function generateInventorySummary(objectsData, analysisDiv) {
+        // Calculate totals
+        const valuedObjects = objectsData.filter(obj => 
+            ['asset', 'component', 'consumable', 'service', 'software'].includes(obj.object_type)
+        );
+        
+        const totalAcquisition = valuedObjects.reduce((sum, obj) => 
+            sum + (obj.data.acquisition_cost || 0), 0
+        );
+        
+        const totalEstimated = valuedObjects.reduce((sum, obj) => 
+            sum + (obj.data.estimated_value || obj.data.acquisition_cost || 0), 0
+        );
+        
+        // Count objects by type
+        const objectTypes = {};
+        objectsData.forEach(obj => {
+            objectTypes[obj.object_type] = (objectTypes[obj.object_type] || 0) + 1;
+        });
+        
+        // Count objects by category
+        const categories = {};
+        objectsData.forEach(obj => {
+            const category = obj.data.category || 'Uncategorized';
+            const objValue = ['asset', 'component', 'consumable', 'service', 'software'].includes(obj.object_type) 
+                ? (obj.data.estimated_value || obj.data.acquisition_cost || 0) : 0;
+            
+            if (!categories[category]) {
+                categories[category] = { count: 0, value: 0 };
+            }
+            categories[category].count++;
+            categories[category].value += objValue;
+        });
+        
+        // Generate HTML
+        let html = `
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Total Objects</h6>
+                            <h2 class="display-5">${objectsData.length}</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Total Value</h6>
+                            <h2 class="display-5">$${totalEstimated.toFixed(2)}</h2>
+                            <small class="text-muted">$${totalAcquisition.toFixed(2)} original cost</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 bg-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Avg Value (Valued Items)</h6>
+                            <h2 class="display-5">$${valuedObjects.length > 0 ? (totalEstimated / valuedObjects.length).toFixed(2) : '0.00'}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6 mb-3">
+                    <h5>Objects by Type</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th class="text-end">Count</th>
+                                    <th class="text-end">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        // Add rows for each object type
+        Object.entries(objectTypes)
+            .sort(([,a], [,b]) => b - a)
+            .forEach(([type, count]) => {
+                const percentage = (count / objectsData.length) * 100;
+                html += `
+                    <tr>
+                        <td>${type.charAt(0).toUpperCase() + type.slice(1)}</td>
+                        <td class="text-end">${count}</td>
+                        <td class="text-end">${percentage.toFixed(1)}%</td>
+                    </tr>
+                `;
+            });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <h5>Objects by Category</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th class="text-end">Count</th>
+                                    <th class="text-end">Total Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        // Add rows for each category
+        Object.entries(categories)
+            .sort(([,a], [,b]) => b.count - a.count)
+            .forEach(([category, data]) => {
+                html += `
+                    <tr>
+                        <td>${category}</td>
+                        <td class="text-end">${data.count}</td>
+                        <td class="text-end">$${data.value.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        analysisDiv.innerHTML = html;
+    }
+    
+    // Function to generate receipt details HTML
+    function generateReceiptDetailsHTML(receipt) {
+        let html = `
+            <div class="row">
+                <div class="col-md-8">
+                    <h6 class="text-info mb-3"><i class="fas fa-info-circle me-2"></i>Receipt Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Receipt Number:</strong></td>
+                            <td>${receipt.invoice_number}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vendor:</strong></td>
+                            <td>${receipt.vendor}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Date:</strong></td>
+                            <td>${receipt.data.date || 'Unknown'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total Amount:</strong></td>
+                            <td>$${(receipt.data.total_amount || 0).toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td><span class="badge ${receipt.is_paid ? 'bg-success' : 'bg-warning'}">${receipt.is_paid ? 'Paid' : 'Unpaid'}</span></td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-4">
+                    ${receipt.attachments && receipt.attachments.length > 0 ? `
+                        <h6 class="text-info mb-3"><i class="fas fa-image me-2"></i>Receipt Image</h6>
+                        <img src="data:${receipt.attachments[0].file_type};base64,${receipt.attachments[0].file_data_b64}" 
+                             class="img-fluid border rounded" 
+                             alt="Receipt Image" 
+                             style="max-height: 300px;">
+                    ` : '<p class="text-muted">No receipt image available</p>'}
+                </div>
+            </div>
+        `;
+        
+        // Add objects if available
+        if (receipt.objects && receipt.objects.length > 0) {
+            html += `
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6 class="text-success mb-3"><i class="fas fa-boxes me-2"></i>Related Objects (${receipt.objects.length})</h6>
+                        <div class="list-group">
+            `;
+            
+            receipt.objects.forEach(obj => {
+                html += `
+                    <div class="list-group-item bg-dark border-secondary d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">${obj.name}</h6>
+                            <small class="text-muted">Type: ${obj.object_type} | Category: ${obj.category}</small>
+                        </div>
+                        <span class="badge bg-primary">${obj.object_type}</span>
+                    </div>
+                `;
+            });
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        return html;
+    }
 });
 </script>
 {% endblock %}

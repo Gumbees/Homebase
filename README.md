@@ -5,11 +5,14 @@ Homebase is a comprehensive home inventory management system that combines recei
 ## ✨ Features
 
 ### 📄 Receipt & Bill Processing
-- **AI-Powered OCR**: Upload receipts in various formats (JPG, PNG, PDF) with automatic text extraction
-- **Multi-AI Support**: Choose between OpenAI, Claude (Anthropic), or local LLM Studio for processing
-- **Smart Line Item Detection**: Automatically extracts individual items from receipts
+- **Advanced AI Vision**: Powered exclusively by OpenAI GPT-4o with superior image processing capabilities
+- **QR Code & UPC Extraction**: Automatically detects, crops, and saves QR codes and UPC/barcodes as images
+- **No Image Size Limits**: Process large, high-resolution receipts without compression
+- **Smart Line Item Detection**: Automatically extracts individual items with enhanced metadata
 - **Vendor Recognition**: Identifies and tracks vendors automatically
 - **Invoice Management**: Converts receipts to structured invoice data
+- **Selective Object Creation**: Checkbox-based system to choose what gets created from each receipt
+- **Creation Tracking**: Prevents duplicate creation and tracks what was made from each receipt
 
 ### 🏠 Inventory Management
 - **Multi-Type Objects**: Track assets, consumables, components, persons, pets, services, and software
@@ -18,12 +21,14 @@ Homebase is a comprehensive home inventory management system that combines recei
 - **Photo Attachments**: Store multiple photos and documents for each item
 - **Depreciation Tracking**: Monitor asset values and useful life
 
-### 🤖 AI Integration
-- **Receipt Analysis**: Automatic extraction of vendor, date, total, and line items
-- **Object Evaluation**: AI analyzes photos to suggest categorization and details
+### 🤖 AI Integration (OpenAI GPT-4o Exclusive)
+- **Advanced Receipt Analysis**: Comprehensive extraction of vendor, date, total, line items, and metadata
+- **Image Cropping**: AI automatically crops and extracts QR codes, UPC codes, and confirmation codes
+- **Enhanced Object Recognition**: Superior categorization with manufacturer, model, and serial number detection
 - **Smart Linking**: Automatically connects receipts to existing inventory items
 - **Confidence Scoring**: AI provides confidence levels for all suggestions
 - **Queue Management**: Rate-limited AI processing to manage API costs
+- **High-Resolution Processing**: No image compression required for optimal AI analysis
 
 ### 📊 Data Management
 - **PostgreSQL Database**: Robust data storage with JSONB fields for flexible schemas
@@ -118,6 +123,34 @@ The current implementation uses these primary tables:
 - **`ai_evaluation_queue`** - AI analysis queue for objects
 - **`organization_contacts`** - Links organizations to people objects
 - **`user_person_mapping`** - Links users to their corresponding people objects
+- **`receipt_creation_tracking`** - Tracks what was created from each receipt
+
+### 🎛️ Receipt Creation Tracking System
+
+Homebase includes a sophisticated system for tracking what gets created from receipts:
+
+**Key Concepts:**
+- `creation_type`: What type was created (`'object'`, `'invoice'`, `'organization'`, `'calendar_event'`)
+- `creation_id`: The primary key of the created record (regardless of table)
+- `line_item_index`: Which receipt line item created it (null for receipt-level items)
+
+**Features:**
+- **🎯 Selective Creation**: Use checkboxes in AI Queue to choose what gets created
+- **🛡️ Duplicate Prevention**: Never create the same thing twice from one receipt
+- **📍 Granular Tracking**: Line-item level tracking for objects, receipt-level for entities
+- **🧠 Smart UI**: Hide creation options on Receipts page once items are already created
+
+**Examples:**
+```sql
+-- Object created from line item 0
+creation_type='object', creation_id=123, line_item_index=0
+
+-- Calendar event created from receipt
+creation_type='calendar_event', creation_id=456, line_item_index=NULL
+
+-- Organization created from vendor
+creation_type='organization', creation_id=789, line_item_index=NULL
+```
 
 ### 🎯 Design Benefits
 
@@ -179,28 +212,28 @@ All configuration is done through the `stack.env` file:
 |----------|-------------|----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | Yes | - |
 | `SESSION_SECRET` | Flask session secret key | No | `development_secret_key` |
-| `OPENAI_API_KEY` | OpenAI API key for GPT models | No | - |
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | No | - |
-| `LLM_STUDIO_ENDPOINT` | Local LLM Studio endpoint | No | `http://localhost:1234` |
+| `OPENAI_API_KEY` | OpenAI API key for GPT-4o models | **Yes** | - |
 
 ### AI Provider Configuration
 
-Homebase supports multiple AI providers:
+Homebase is powered exclusively by **OpenAI GPT-4o** for optimal image processing capabilities:
 
-- **OpenAI**: GPT-4 Vision for receipt and image analysis
-- **Claude (Anthropic)**: Claude-3.5 Sonnet for enhanced analysis
-- **LLM Studio**: Local models for privacy-focused processing
+- **OpenAI GPT-4o**: Advanced vision model with QR code and UPC code cropping capabilities
+- **High-Resolution Support**: Process large images without size limitations
+- **Enhanced Metadata Extraction**: Superior detection of codes, serial numbers, and product details
+- **Consistent Results**: Single AI provider ensures predictable, reliable processing
 
-Configure your preferred provider in the application settings after first run.
+The system automatically uses OpenAI for all AI operations including receipt analysis, object recognition, and image processing.
 
 ## 📱 Usage
 
 ### Adding Receipts
 1. Navigate to **Receipt Upload**
-2. Upload your receipt (JPG, PNG, or PDF)
-3. Choose your AI model (Claude recommended)
-4. Review the extracted data and line items
-5. Optionally create inventory objects from line items
+2. Upload your receipt (JPG, PNG, or PDF) - any size supported
+3. AI automatically processes with OpenAI GPT-4o (no model selection needed)
+4. Review extracted data, line items, and any cropped QR/UPC codes
+5. Use checkbox interface to selectively create inventory objects from line items
+6. View cropped QR codes and UPC barcodes in object attachments
 
 ### Managing Inventory
 1. Go to **Inventory** to view all objects
@@ -243,13 +276,25 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for development setup, architecture details
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## ⚠️ Known Problems
+
+### Critical Issues
+- **Calendar Page**: The calendar page loads indefinitely and is not functional. This affects event viewing and calendar-based features.
+
+### UI Issues
+- **Modal Backdrop Stuck**: After viewing object/entity details in modal windows and closing them, the screen sometimes remains with a transparent gray overlay and becomes unclickable. This affects object details modals throughout the application.
+
+### Workarounds
+- **Calendar**: Use the AI Queue and Receipts pages for event management until calendar functionality is restored. Events can still be created through receipt processing but cannot be viewed in calendar format.
+- **Modal Backdrop**: If the screen becomes unclickable after closing a modal, refresh the page (F5) to restore functionality. Alternatively, press the ESC key multiple times to force-close any lingering modal states.
+
 ## 🆘 Support
 
 For support, please open an issue on GitHub or contact the development team.
 
 ## 🙏 Acknowledgments
 
-- OpenAI for GPT-4 Vision API
-- Anthropic for Claude AI models
+- OpenAI for GPT-4o Vision API and advanced image processing capabilities
 - Flask and SQLAlchemy communities
-- The open-source OCR and PDF processing libraries 
+- The open-source OCR and PDF processing libraries
+- Contributors to the computer vision and QR code processing ecosystem 

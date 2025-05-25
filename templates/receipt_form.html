@@ -10,7 +10,7 @@
                         <i class="fas fa-brain me-2"></i>
                         AI Receipt Processing
                     </h2>
-                    <p class="mb-0 mt-2">Upload your receipt and let AI extract all the data automatically</p>
+                    <p class="mb-0 mt-2">Upload your receipt or take a photo and let AI extract all the data automatically</p>
                 </div>
                 <div class="card-body p-4">
                     
@@ -18,7 +18,7 @@
                     <div class="alert alert-info mb-4">
                         <h6><i class="fas fa-info-circle me-2"></i>How it works:</h6>
                         <ol class="mb-0 ps-3">
-                            <li>Upload your receipt image or PDF</li>
+                            <li>Upload your receipt image/PDF or take a photo with your camera</li>
                             <li>AI analyzes and extracts all data (vendor, items, amounts)</li>
                             <li>Review and approve AI suggestions in the AI Queue</li>
                             <li>Invoice and inventory items are created automatically</li>
@@ -27,8 +27,26 @@
 
                     <form action="/receipt-upload" method="POST" enctype="multipart/form-data" id="receipt-form">
                         
-                        <!-- File Upload Section -->
+                        <!-- Capture Method Selection -->
                         <div class="mb-4">
+                            <label class="form-label fs-5">
+                                <i class="fas fa-camera me-2"></i>Capture Method
+                            </label>
+                            <div class="btn-group w-100" role="group" aria-label="Capture method">
+                                <input type="radio" class="btn-check" name="capture_method" id="upload_method" checked>
+                                <label class="btn btn-outline-primary" for="upload_method">
+                                    <i class="fas fa-upload me-2"></i>Upload File
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="capture_method" id="camera_method">
+                                <label class="btn btn-outline-primary" for="camera_method">
+                                    <i class="fas fa-camera me-2"></i>Take Photo
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- File Upload Section -->
+                        <div id="upload-section" class="mb-4">
                             <label for="receipt_image" class="form-label fs-5">
                                 <i class="fas fa-upload me-2"></i>Upload Receipt
                             </label>
@@ -36,19 +54,74 @@
                                    class="form-control form-control-lg" 
                                    id="receipt_image" 
                                    name="receipt_image" 
-                                   accept="image/*,.pdf" 
-                                   required>
+                                   accept="image/*,.pdf">
                             <div class="form-text">
                                 <i class="fas fa-file-image me-1"></i>
                                 Supported formats: JPG, PNG, PDF (Max size: 16MB)
                             </div>
                         </div>
 
+                        <!-- Camera Section -->
+                        <div id="camera-section" class="mb-4 d-none">
+                            <label class="form-label fs-5">
+                                <i class="fas fa-camera me-2"></i>Camera Capture
+                            </label>
+                            
+                            <!-- Camera Controls -->
+                            <div class="camera-controls mb-3">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button type="button" class="btn btn-success" id="start-camera">
+                                        <i class="fas fa-video me-2"></i>Start Camera
+                                    </button>
+                                    <button type="button" class="btn btn-primary d-none" id="capture-photo">
+                                        <i class="fas fa-camera me-2"></i>Take Photo
+                                    </button>
+                                    <button type="button" class="btn btn-warning d-none" id="retake-photo">
+                                        <i class="fas fa-redo me-2"></i>Retake
+                                    </button>
+                                    <button type="button" class="btn btn-secondary d-none" id="stop-camera">
+                                        <i class="fas fa-stop me-2"></i>Stop Camera
+                                    </button>
+                                    <select id="camera-select" class="form-select d-none" style="width: auto;">
+                                        <option value="">Select Camera</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Camera Preview -->
+                            <div class="camera-container position-relative mb-3">
+                                <video id="camera-preview" class="w-100 border rounded d-none" autoplay playsinline style="max-height: 400px;"></video>
+                                <canvas id="photo-canvas" class="d-none"></canvas>
+                                
+                                <!-- Camera Guidelines Overlay -->
+                                <div id="camera-guidelines" class="position-absolute top-0 start-0 w-100 h-100 d-none" style="pointer-events: none;">
+                                    <div class="position-absolute border border-warning border-2 rounded" 
+                                         style="top: 10%; left: 10%; width: 80%; height: 80%; border-style: dashed !important;">
+                                        <div class="position-absolute top-50 start-50 translate-middle text-warning bg-dark px-2 py-1 rounded">
+                                            <small><i class="fas fa-receipt me-1"></i>Position receipt within frame</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Camera Status -->
+                            <div id="camera-status" class="alert alert-info d-none">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <span id="camera-status-text">Ready to capture</span>
+                            </div>
+                            
+                            <!-- Hidden input for camera-captured image -->
+                            <input type="hidden" id="camera-image-data" name="camera_image_data">
+                        </div>
+
                         <!-- Receipt Preview -->
                         <div id="receipt-preview-container" class="mb-4 d-none">
                             <div class="card">
-                                <div class="card-header">
-                                    <i class="fas fa-eye me-2"></i>Receipt Preview
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-eye me-2"></i>Receipt Preview</span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-preview">
+                                        <i class="fas fa-times me-1"></i>Clear
+                                    </button>
                                 </div>
                                 <div class="card-body text-center">
                                     <img id="receipt-preview" 
@@ -59,54 +132,29 @@
                             </div>
                         </div>
                         
-                        <!-- AI Provider Selection -->
+                        <!-- AI Processing Information -->
                         <div class="mb-4">
                             <label class="form-label fs-5">
-                                <i class="fas fa-robot me-2"></i>AI Provider
+                                <i class="fas fa-robot me-2"></i>AI Processing
                             </label>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="form-check">
-                                                <input class="form-check-input" 
-                                                       type="radio" 
-                                                       name="ai_provider" 
-                                                       id="provider_claude" 
-                                                       value="claude" 
-                                                       checked>
-                                                <label class="form-check-label" for="provider_claude">
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-brain text-primary fa-2x me-3"></i>
-                                                        <div>
-                                                            <strong>Claude (Anthropic)</strong>
-                                                            <div class="text-muted small">Best for detailed analysis</div>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="form-check">
-                                                <input class="form-check-input" 
-                                                       type="radio" 
-                                                       name="ai_provider" 
-                                                       id="provider_openai" 
-                                                       value="openai">
-                                                <label class="form-check-label" for="provider_openai">
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-eye text-success fa-2x me-3"></i>
-                                                        <div>
-                                                            <strong>GPT-4o (OpenAI)</strong>
-                                                            <div class="text-muted small">Excellent vision processing</div>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            </div>
+                            <div class="card border-primary">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-eye text-primary fa-3x me-3"></i>
+                                        <div>
+                                            <h5 class="card-title mb-1">OpenAI GPT-4o</h5>
+                                            <p class="card-text text-muted mb-2">
+                                                Advanced vision model with QR code and UPC code detection and cropping
+                                            </p>
+                                            <small class="text-success">
+                                                <i class="fas fa-check-circle me-1"></i>
+                                                Automatically selected for optimal results
+                                            </small>
+                                            <br>
+                                            <small class="text-info">
+                                                <i class="fas fa-crop me-1"></i>
+                                                Detects and saves QR codes and barcodes as images
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
@@ -182,24 +230,31 @@
                 <!-- Quick Help -->
                 <div class="card-footer bg-light">
                     <div class="row text-center">
-                        <div class="col-md-4">
-                            <i class="fas fa-cloud-upload-alt text-primary fa-2x mb-2"></i>
+                        <div class="col-md-3">
+                            <i class="fas fa-camera text-primary fa-2x mb-2"></i>
+                            <div class="small">
+                                <strong>Capture</strong><br>
+                                Photo or upload file
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <i class="fas fa-cloud-upload-alt text-success fa-2x mb-2"></i>
                             <div class="small">
                                 <strong>Upload</strong><br>
                                 Any receipt format
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <i class="fas fa-brain text-success fa-2x mb-2"></i>
+                        <div class="col-md-3">
+                            <i class="fas fa-brain text-info fa-2x mb-2"></i>
                             <div class="small">
                                 <strong>AI Analysis</strong><br>
                                 Automatic data extraction
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <i class="fas fa-check-circle text-info fa-2x mb-2"></i>
+                        <div class="col-md-3">
+                            <i class="fas fa-check-circle text-warning fa-2x mb-2"></i>
                             <div class="small">
-                                <strong>Review & Approve</strong><br>
+                                <strong>Review</strong><br>
                                 Quick approval workflow
                             </div>
                         </div>
@@ -222,6 +277,184 @@ document.addEventListener('DOMContentLoaded', function() {
     const processingStatus = document.getElementById('processing-status');
     const processingStep = document.getElementById('processing-step');
     const progressBar = document.getElementById('processing-progress-bar');
+
+    // Camera elements
+    const uploadMethodRadio = document.getElementById('upload_method');
+    const cameraMethodRadio = document.getElementById('camera_method');
+    const uploadSection = document.getElementById('upload-section');
+    const cameraSection = document.getElementById('camera-section');
+    const startCameraBtn = document.getElementById('start-camera');
+    const capturePhotoBtn = document.getElementById('capture-photo');
+    const retakePhotoBtn = document.getElementById('retake-photo');
+    const stopCameraBtn = document.getElementById('stop-camera');
+    const cameraSelect = document.getElementById('camera-select');
+    const cameraPreview = document.getElementById('camera-preview');
+    const photoCanvas = document.getElementById('photo-canvas');
+    const cameraGuidelines = document.getElementById('camera-guidelines');
+    const cameraStatus = document.getElementById('camera-status');
+    const cameraStatusText = document.getElementById('camera-status-text');
+    const cameraImageData = document.getElementById('camera-image-data');
+    const clearPreviewBtn = document.getElementById('clear-preview');
+
+    let currentStream = null;
+    let availableCameras = [];
+
+    // Capture method toggle
+    uploadMethodRadio.addEventListener('change', function() {
+        if (this.checked) {
+            uploadSection.classList.remove('d-none');
+            cameraSection.classList.add('d-none');
+            stopCamera();
+            fileInput.required = true;
+        }
+    });
+
+    cameraMethodRadio.addEventListener('change', function() {
+        if (this.checked) {
+            uploadSection.classList.add('d-none');
+            cameraSection.classList.remove('d-none');
+            fileInput.required = false;
+            fileInput.value = '';
+            getCameras();
+        }
+    });
+
+    // Get available cameras
+    async function getCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            availableCameras = devices.filter(device => device.kind === 'videoinput');
+            
+            cameraSelect.innerHTML = '<option value="">Select Camera</option>';
+            availableCameras.forEach((camera, index) => {
+                const option = document.createElement('option');
+                option.value = camera.deviceId;
+                option.textContent = camera.label || `Camera ${index + 1}`;
+                cameraSelect.appendChild(option);
+            });
+
+            if (availableCameras.length > 0) {
+                cameraSelect.classList.remove('d-none');
+                // Prefer back camera on mobile
+                const backCamera = availableCameras.find(camera => 
+                    camera.label.toLowerCase().includes('back') || 
+                    camera.label.toLowerCase().includes('environment')
+                );
+                if (backCamera) {
+                    cameraSelect.value = backCamera.deviceId;
+                }
+            }
+        } catch (error) {
+            console.error('Error getting cameras:', error);
+            showCameraStatus('Error accessing cameras', 'danger');
+        }
+    }
+
+    // Start camera
+    startCameraBtn.addEventListener('click', async function() {
+        try {
+            const constraints = {
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: 'environment' // Prefer back camera
+                }
+            };
+
+            // Use selected camera if available
+            if (cameraSelect.value) {
+                constraints.video.deviceId = { exact: cameraSelect.value };
+            }
+
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            cameraPreview.srcObject = currentStream;
+            cameraPreview.classList.remove('d-none');
+            cameraGuidelines.classList.remove('d-none');
+
+            startCameraBtn.classList.add('d-none');
+            capturePhotoBtn.classList.remove('d-none');
+            stopCameraBtn.classList.remove('d-none');
+
+            showCameraStatus('Camera ready - Position your receipt in the frame', 'success');
+        } catch (error) {
+            console.error('Error starting camera:', error);
+            showCameraStatus('Unable to access camera. Please check permissions.', 'danger');
+        }
+    });
+
+    // Capture photo
+    capturePhotoBtn.addEventListener('click', function() {
+        const context = photoCanvas.getContext('2d');
+        photoCanvas.width = cameraPreview.videoWidth;
+        photoCanvas.height = cameraPreview.videoHeight;
+        
+        context.drawImage(cameraPreview, 0, 0);
+        const imageDataUrl = photoCanvas.toDataURL('image/jpeg', 0.8);
+        
+        // Store image data
+        cameraImageData.value = imageDataUrl;
+        
+        // Show preview
+        previewImage.src = imageDataUrl;
+        previewContainer.classList.remove('d-none');
+        
+        // Update UI
+        cameraPreview.classList.add('d-none');
+        cameraGuidelines.classList.add('d-none');
+        capturePhotoBtn.classList.add('d-none');
+        retakePhotoBtn.classList.remove('d-none');
+        
+        showCameraStatus('Photo captured successfully!', 'success');
+    });
+
+    // Retake photo
+    retakePhotoBtn.addEventListener('click', function() {
+        cameraPreview.classList.remove('d-none');
+        cameraGuidelines.classList.remove('d-none');
+        capturePhotoBtn.classList.remove('d-none');
+        retakePhotoBtn.classList.add('d-none');
+        
+        cameraImageData.value = '';
+        previewContainer.classList.add('d-none');
+        
+        showCameraStatus('Ready to capture - Position your receipt in the frame', 'info');
+    });
+
+    // Stop camera
+    stopCameraBtn.addEventListener('click', stopCamera);
+
+    function stopCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        
+        cameraPreview.classList.add('d-none');
+        cameraGuidelines.classList.add('d-none');
+        cameraStatus.classList.add('d-none');
+        
+        startCameraBtn.classList.remove('d-none');
+        capturePhotoBtn.classList.add('d-none');
+        retakePhotoBtn.classList.add('d-none');
+        stopCameraBtn.classList.add('d-none');
+    }
+
+    function showCameraStatus(message, type = 'info') {
+        cameraStatus.className = `alert alert-${type}`;
+        cameraStatusText.textContent = message;
+        cameraStatus.classList.remove('d-none');
+    }
+
+    // Clear preview
+    clearPreviewBtn.addEventListener('click', function() {
+        previewContainer.classList.add('d-none');
+        fileInput.value = '';
+        cameraImageData.value = '';
+        
+        if (cameraMethodRadio.checked) {
+            retakePhotoBtn.click();
+        }
+    });
 
     // File preview functionality
     fileInput.addEventListener('change', function(e) {
@@ -247,15 +480,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Form submission with progress animation
     form.addEventListener('submit', function(e) {
-        if (!fileInput.files[0]) {
+        const hasFile = fileInput.files[0];
+        const hasCameraImage = cameraImageData.value;
+        
+        if (!hasFile && !hasCameraImage) {
             e.preventDefault();
-            alert('Please select a receipt file to upload.');
+            alert('Please select a receipt file or take a photo.');
             return;
         }
 
         // Show processing status
         submitBtn.disabled = true;
         processingStatus.classList.remove('d-none');
+        
+        // Stop camera if running
+        stopCamera();
         
         // Animate progress bar
         let progress = 20;
@@ -281,23 +520,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 15000);
     });
 
-    // Provider selection styling
-    document.querySelectorAll('input[name="ai_provider"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            // Reset all cards
-            document.querySelectorAll('.card').forEach(card => {
-                card.classList.remove('border-primary');
-            });
-            
-            // Highlight selected card
-            if (this.checked) {
-                this.closest('.card').classList.add('border-primary');
-            }
-        });
-    });
+    // No provider selection needed - OpenAI is automatically used
 
-    // Set initial selection
-    document.getElementById('provider_claude').closest('.card').classList.add('border-primary');
+    // Handle page unload to stop camera
+    window.addEventListener('beforeunload', function() {
+        stopCamera();
+    });
 });
 </script>
+
+<!-- Receipt Processing JavaScript -->
+<script src="{{ url_for('static', filename='js/receipt_processing.js') }}"></script>
 {% endblock %}

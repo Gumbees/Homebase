@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Users - Homebase{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-users me-2"></i>Users Management
+                    </h1>
+                    <p class="text-muted">Manage users and their linked person objects</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('inventory') }}?filter=person" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-user-plus me-1"></i>View Person Objects
+                    </a>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-0">{{ users|length }}</h5>
+                                    <small>Total Users</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-users fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-0">{{ similar_groups|length }}</h5>
+                                    <small>Similar Groups</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-user-friends fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-0">
+                                        0
+                                    </h5>
+                                    <small>Users with Aliases</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-tag fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-0">
+                                        0
+                                    </h5>
+                                    <small>Linked Persons</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-link fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-2"></i>Users
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Type</th>
+                                    <th>Linked Persons</th>
+                                    <th>Aliases</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-0">{{ user.display_name }}</h6>
+                                                <small class="text-muted">{{ user.email }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">User</span>
+                                        {% if user.is_admin %}
+                                            <span class="badge bg-warning">Admin</span>
+                                        {% endif %}
+                                        {% if not user.is_active %}
+                                            <span class="badge bg-danger">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set linked_persons = user.get_linked_person_objects() %}
+                                        {% if linked_persons %}
+                                            <span class="badge bg-success">{{ linked_persons|length }}</span>
+                                            <br><small class="text-muted">linked persons</small>
+                                        {% else %}
+                                            <small class="text-muted">No linked persons</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.aliases %}
+                                            <div class="d-flex flex-wrap gap-1">
+                                                {% for alias in user.aliases[:3] %}
+                                                    <span class="badge bg-info">{{ alias.alias_name }}</span>
+                                                {% endfor %}
+                                                {% if user.aliases|length > 3 %}
+                                                    <span class="badge bg-secondary">+{{ user.aliases|length - 3 }} more</span>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <small class="text-muted">No aliases</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('view_user', user_id=user.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No users found</h5>
+                        <p class="text-muted">Users will appear when person objects are promoted to users</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Similar Person Groups -->
+            {% if similar_groups %}
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-friends me-2"></i>Similar Person Groups
+                        <small class="opacity-75">(potential user links)</small>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for group in similar_groups %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-info">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-users text-info me-1"></i>
+                                        Similar Names Group {{ loop.index }}
+                                    </h6>
+                                    <div class="mb-2">
+                                        {% for person in group.persons %}
+                                            <span class="badge bg-light text-dark me-1 mb-1">{{ person.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    <small class="text-muted">
+                                        Confidence: {{ "%.1f"|format(group.confidence * 100) }}%
+                                    </small>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-success" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#linkPersonsModal"
+                                                data-group-index="{{ loop.index0 }}">
+                                            <i class="fas fa-link me-1"></i>Create User Link
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Link Persons Modal -->
+<div class="modal fade" id="linkPersonsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-link me-2"></i>Create User from Similar Persons
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="linkPersonsForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        This will create a user account and link the selected person objects to it.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Person Objects to Link</label>
+                        <div id="personCheckboxes">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-user-plus me-1"></i>Create User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Handle similar groups modal
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('linkPersonsModal');
+    const similarGroups = {{ similar_groups|tojson if similar_groups else '[]' }};
+    
+    modal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        const groupIndex = parseInt(button.getAttribute('data-group-index'));
+        const group = similarGroups[groupIndex];
+        
+        if (group) {
+            // Populate person checkboxes
+            const checkboxContainer = document.getElementById('personCheckboxes');
+            checkboxContainer.innerHTML = '';
+            
+            group.persons.forEach(function(person, index) {
+                const div = document.createElement('div');
+                div.className = 'form-check';
+                div.innerHTML = `
+                    <input class="form-check-input" type="checkbox" 
+                           value="${person.id}" id="person${person.id}" 
+                           name="person_ids" ${index === 0 ? 'checked' : ''}>
+                    <label class="form-check-label" for="person${person.id}">
+                        ${person.name}
+                        <small class="text-muted d-block">${person.description || 'No description'}</small>
+                    </label>
+                `;
+                checkboxContainer.appendChild(div);
+            });
+            
+            // Set default username from first person
+            if (group.persons.length > 0) {
+                document.getElementById('username').value = group.persons[0].name.toLowerCase().replace(/\s+/g, '_');
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

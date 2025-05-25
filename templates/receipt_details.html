@@ -84,6 +84,7 @@
                         <th>Quantity</th>
                         <th>Unit Price</th>
                         <th>Total</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,6 +94,22 @@
                         <td>{{ item.data.get('quantity', 1) }}</td>
                         <td>${{ "%.2f"|format(item.data.get('unit_price', 0)) }}</td>
                         <td>${{ "%.2f"|format(item.data.get('total_price', 0)) }}</td>
+                        <td>
+                            {% if show_creation_options.line_item_objects.get(loop.index0, True) %}
+                                <button class="btn btn-sm btn-success create-object-from-line-btn" 
+                                        data-receipt-id="{{ receipt.id }}" 
+                                        data-line-index="{{ loop.index0 }}"
+                                        data-description="{{ item.data.get('description', '') }}"
+                                        data-quantity="{{ item.data.get('quantity', 1) }}"
+                                        data-unit-price="{{ item.data.get('unit_price', 0) }}">
+                                    <i class="fas fa-plus me-1"></i>Create Object
+                                </button>
+                            {% else %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Object Created
+                                </span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -124,6 +141,176 @@
             {% endfor %}
         </div>
         {% endif %}
+
+        <!-- Creation Summary and Options -->
+        {% if creation_summary %}
+        <div class="card bg-secondary mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks me-2"></i>Creation Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Items Created from this Receipt:</h6>
+                        <ul class="list-unstyled">
+                            {% for creation_type, count in creation_summary.totals.items() %}
+                                {% if count > 0 %}
+                                <li>
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    {{ count }} {{ creation_type|replace('_', ' ')|title }}{{ 's' if count != 1 else '' }}
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            {% if creation_summary.totals.values()|list|sum == 0 %}
+                                <li><i class="fas fa-info-circle text-muted me-2"></i>No items created yet</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Additional Creation Options:</h6>
+                        <div class="d-grid gap-2">
+                            {% if show_creation_options.organization and receipt.data.get('vendor') %}
+                                <button class="btn btn-outline-warning btn-sm create-organization-btn" 
+                                        data-receipt-id="{{ receipt.id }}" 
+                                        data-vendor-name="{{ receipt.data.get('vendor') }}">
+                                    <i class="fas fa-building me-1"></i>Create Organization: {{ receipt.data.get('vendor') }}
+                                </button>
+                            {% endif %}
+                            
+                            {% if show_creation_options.calendar_event and receipt.data.get('event_details') %}
+                                <button class="btn btn-outline-info btn-sm create-event-btn" 
+                                        data-receipt-id="{{ receipt.id }}">
+                                    <i class="fas fa-calendar-alt me-1"></i>Create Calendar Event
+                                </button>
+                            {% elif receipt.data.get('vendor') and 'event' in receipt.data.get('vendor', '').lower() %}
+                                <button class="btn btn-outline-info btn-sm create-event-btn" 
+                                        data-receipt-id="{{ receipt.id }}">
+                                    <i class="fas fa-calendar-alt me-1"></i>Create Calendar Event (Event Vendor Detected)
+                                </button>
+                            {% endif %}
+                            
+                            {% if not (show_creation_options.organization or show_creation_options.calendar_event) and show_creation_options.line_item_objects.values()|list|select|list|length == 0 %}
+                                <p class="text-muted mb-0">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    All available items have been created from this receipt.
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Create Object from Line Item buttons
+    document.querySelectorAll('.create-object-from-line-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            const lineIndex = this.getAttribute('data-line-index');
+            const description = this.getAttribute('data-description');
+            const quantity = this.getAttribute('data-quantity');
+            const unitPrice = this.getAttribute('data-unit-price');
+            
+            if (confirm(`Create object: "${description}" from this line item?`)) {
+                fetch('/create-object-from-receipt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        receipt_id: receiptId,
+                        line_index: parseInt(lineIndex),
+                        description: description,
+                        quantity: parseInt(quantity),
+                        unit_price: parseFloat(unitPrice),
+                        object_type: 'asset'  // Default, user can edit later
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully created object: "${data.object_name}"!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error creating object: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error creating object: ${error.message}`);
+                });
+            }
+        });
+    });
+    
+    // Create Organization buttons
+    document.querySelectorAll('.create-organization-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            const vendorName = this.getAttribute('data-vendor-name');
+            
+            if (confirm(`Create organization record for "${vendorName}"?`)) {
+                fetch('/create-organization-from-receipt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        receipt_id: receiptId,
+                        vendor_name: vendorName
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully created organization: "${vendorName}"!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error creating organization: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error creating organization: ${error.message}`);
+                });
+            }
+        });
+    });
+    
+    // Create Calendar Event buttons
+    document.querySelectorAll('.create-event-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const receiptId = this.getAttribute('data-receipt-id');
+            
+            if (confirm('Create a calendar event from this receipt?')) {
+                fetch('/create-calendar-event-from-receipt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        receipt_id: receiptId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully created calendar event: "${data.event_name}"!`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error creating calendar event: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error creating calendar event: ${error.message}`);
+                });
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

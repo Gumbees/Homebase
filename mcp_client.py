@@ -52,7 +52,7 @@ class MCPClient:
         provider: str = "claude"
     ) -> Dict[str, Any]:
         """
-        Analyze a receipt image and extract structured data
+        Analyze a receipt image and extract structured data with context from existing object types and categories
         
         Args:
             image_data: Raw image bytes
@@ -67,15 +67,23 @@ class MCPClient:
         # Convert image to base64
         base64_data = base64.b64encode(image_data).decode('utf-8')
         
+        # Get existing object types and categories context
+        object_types_context = await self._get_object_types_context()
+        categories_context = await self._get_categories_context()
+        
         try:
             # Enhanced analysis request with comprehensive metadata extraction
-            result = await self.client.call_tool(
-                "analyze_receipt",
-                {
-                    "image_data": base64_data,
+            image_url = f"data:image/jpeg;base64,{base64_data}"
+            
+            request_data = {
+                "prompt_type": "receipt_analysis",
+                "provider": provider,
+                "image_data": image_url,
+                "context": {
                     "filename": filename,
-                    "provider": provider,
                     "enhanced_extraction": True,
+                    "existing_object_types": object_types_context,
+                    "existing_categories": categories_context,
                     "extract_metadata": {
                         "upc_codes": True,
                         "manufacturer": True,
@@ -84,20 +92,41 @@ class MCPClient:
                         "event_detection": True,
                         "qr_codes": True,
                         "digital_assets": True,
-                        "object_classification": True
+                        "object_classification": True,
+                        "person_detection": True  # Explicitly enable person detection
                     },
                     "instructions": (
-                        "Perform comprehensive analysis of this receipt with enhanced metadata extraction. "
+                        "Perform comprehensive analysis of this receipt with enhanced metadata extraction using OpenAI's advanced vision capabilities. "
+                        "IMPORTANT: When QR codes or UPC/barcode codes are detected, crop and return the actual IMAGE of the code as base64 data. "
+                        "Use the provided object types and categories as context for classification. "
                         "For EVERY line item, extract: UPC/barcode codes, manufacturer/brand, model numbers, serial numbers. "
                         "For event tickets/passes: detect QR codes, confirmation codes, venue details, event dates. "
+                        "CROP AND RETURN QR CODE IMAGES: When QR codes are found, extract the actual image region and return as base64. "
+                        "CROP AND RETURN UPC/BARCODE IMAGES: When barcodes are found, extract the actual code image and return as base64. "
                         "For assets: identify depreciation category, maintenance requirements, serial tracking needs. "
-                        "Classify each item as 'asset', 'consumable', or 'expense' based on its nature. "
+                        "Classify each item using the provided object types: asset, consumable, component, service, software, person, pet. "
+                        "Use existing categories when possible, but suggest NEW categories if none fit. "
+                        "ALWAYS detect people mentioned in receipts (customers, staff, attendees, contacts). "
                         "For event-related purchases, extract venue location, event date/time, ticket types. "
-                        "Include digital asset URLs, QR code data, confirmation codes, and any ticket images."
+                        "Include digital asset URLs, QR code data, confirmation codes, and any ticket images. "
+                        "Return cropped images for QR codes and UPC codes in the digital_assets section as: "
+                        "{'qr_code_image': 'base64_data', 'upc_code_image': 'base64_data', 'qr_code': 'text_data', 'upc_code': 'code_data'}. "
+                        "Suggest object creation for line items that represent physical or digital goods."
                     )
-                }
-            )
+                },
+                "output_schema": "receipt_data",
+                "max_tokens": 1500,
+                "temperature": 0.1
+            }
             
+            response = await self.client.post(
+                f"{self.mcp_url}/ai/process",
+                json=request_data
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            logger.info(f"Receipt analyzed successfully with {provider}")
             return result
             
         except Exception as e:
@@ -403,9 +432,180 @@ class MCPClient:
             logger.error(f"Object photo analysis failed: {e}")
             raise
 
+    async def _get_object_types_context(self) -> Dict[str, Any]:
+        """Get existing object types for AI context from API with sensible defaults as fallback"""
+        try:
+            # Try to get object types from our API
+            api_base = self.mcp_url.replace(':8080', ':5000')  # Convert MCP server URL to Flask app URL
+            response = await self.client.get(f"{api_base}/api/object-types")
+            
+            if response.status_code == 200:
+                api_result = response.json()
+                if api_result.get('success'):
+                    logger.debug("Retrieved object types from API")
+                    return api_result['object_types']
+            
+            # Fall back to defaults (helps bootstrap new installations)
+            logger.debug("Using default object types (API unavailable or returned no data)")
+            return self._get_default_object_types()
+            
+        except Exception as e:
+            logger.warning(f"Could not get object types from API: {e}, using defaults")
+            return self._get_default_object_types()
+    
+    def _get_default_object_types(self) -> Dict[str, Any]:
+        """Default object types for bootstrapping new installations"""
+        return {
+            'asset': {
+                'name': 'asset', 
+                'description': 'Durable goods that retain value over time (computers, furniture, equipment)',
+                'examples': ['laptop', 'desk', 'printer', 'car', 'machinery']
+            },
+            'consumable': {
+                'name': 'consumable', 
+                'description': 'Items that are used up or consumed (food, supplies, tickets)',
+                'examples': ['office supplies', 'food', 'event tickets', 'fuel', 'medication']
+            },
+            'component': {
+                'name': 'component', 
+                'description': 'Parts that belong to a larger asset (RAM, tires, replacement parts)',
+                'examples': ['computer RAM', 'car tires', 'printer cartridge', 'phone battery']
+            },
+            'service': {
+                'name': 'service', 
+                'description': 'Intangible services or subscriptions (software licenses, maintenance)',
+                'examples': ['software subscription', 'maintenance contract', 'consulting', 'utilities']
+            },
+            'software': {
+                'name': 'software', 
+                'description': 'Software applications and digital products',
+                'examples': ['Microsoft Office', 'Adobe Creative Suite', 'operating system', 'mobile app']
+            },
+            'person': {
+                'name': 'person', 
+                'description': 'People identified in receipts or transactions (customers, staff, contacts)',
+                'examples': ['customer', 'staff member', 'vendor contact', 'service technician']
+            },
+            'pet': {
+                'name': 'pet', 
+                'description': 'Pet animals and their information',
+                'examples': ['dog', 'cat', 'bird', 'fish']
+            }
+        }
+    
+    async def _get_categories_context(self) -> Dict[str, Any]:
+        """Get existing categories for AI context from API with sensible defaults as fallback"""
+        try:
+            # Try to get categories from our API
+            api_base = self.mcp_url.replace(':8080', ':5000')  # Convert MCP server URL to Flask app URL
+            response = await self.client.get(f"{api_base}/api/categories")
+            
+            if response.status_code == 200:
+                api_result = response.json()
+                if api_result.get('success'):
+                    # Convert API format to simplified format for AI context
+                    categories_by_type = api_result.get('categories_by_type', {})
+                    
+                    # Simplify to just lists of category names
+                    simplified_categories = {}
+                    for obj_type, categories in categories_by_type.items():
+                        simplified_categories[obj_type] = [cat['name'] for cat in categories]
+                    
+                    # Add common new suggestions for AI to consider
+                    simplified_categories['common_new_suggestions'] = [
+                        'Entertainment', 'Travel', 'Health', 'Education', 'Sports', 'Hobby',
+                        'Automotive', 'Home Improvement', 'Security', 'Communication'
+                    ]
+                    
+                    logger.debug(f"Retrieved {api_result.get('total_categories', 0)} categories from API")
+                    return simplified_categories
+            
+            # Fall back to defaults (helps bootstrap new installations)
+            logger.debug("Using default categories (API unavailable or returned no data)")
+            return self._get_default_categories()
+            
+        except Exception as e:
+            logger.warning(f"Could not get categories from API: {e}, using defaults")
+            return self._get_default_categories()
+    
+    def _get_default_categories(self) -> Dict[str, Any]:
+        """Default categories for bootstrapping new installations"""
+        return {
+            'asset': [
+                'Electronics', 'Furniture', 'Equipment', 'Vehicles', 'Appliances',
+                'Tools', 'Infrastructure', 'Art', 'Office Equipment'
+            ],
+            'consumable': [
+                'Office Supplies', 'Cleaning Supplies', 'Food', 'Drinks', 'Medical Supplies',
+                'Packaging', 'Paper Products', 'Kitchen Supplies', 'Parts', 'Event Tickets'
+            ],
+            'component': [
+                'Computer Components', 'Mechanical Parts', 'Electrical Components', 
+                'Structural Components', 'Electronic Modules', 'Hardware'
+            ],
+            'service': [
+                'Subscription', 'Maintenance', 'Consulting', 'Utilities', 'Internet',
+                'Cloud Services', 'Professional Services', 'Communication'
+            ],
+            'software': [
+                'Operating Systems', 'Applications', 'Development Tools', 'Security', 
+                'Productivity', 'Creative', 'Enterprise', 'Games', 'Utilities'
+            ],
+            'person': [
+                'Customer', 'Staff', 'Vendor Contact', 'Service Provider', 'Attendee',
+                'Business Contact', 'Professional'
+            ],
+            'pet': [
+                'Dog', 'Cat', 'Bird', 'Fish', 'Reptile', 'Small Animal'
+            ],
+            'common_new_suggestions': [
+                'Entertainment', 'Travel', 'Health', 'Education', 'Sports', 'Hobby',
+                'Automotive', 'Home Improvement', 'Security', 'Communication'
+            ]
+        }
+    
     def _extract_basic_vendor_from_filename(self, filename: str) -> str:
-        # Implement the logic to extract a basic vendor name from the filename
-        # This is a placeholder and should be replaced with the actual implementation
+        """Extract a basic vendor name from the filename using pattern matching"""
+        # Remove file extension and clean filename
+        base_name = filename.lower().replace('_', ' ').replace('-', ' ')
+        if '.' in base_name:
+            base_name = base_name.split('.')[0]
+        
+        # Common vendor patterns
+        vendor_patterns = {
+            'walmart': 'Walmart',
+            'amazon': 'Amazon',
+            'target': 'Target',
+            'costco': 'Costco',
+            'home depot': 'Home Depot',
+            'lowes': "Lowe's",
+            'best buy': 'Best Buy',
+            'apple': 'Apple',
+            'microsoft': 'Microsoft',
+            'google': 'Google',
+            'starbucks': 'Starbucks',
+            'mcdonalds': "McDonald's",
+            'gas station': 'Gas Station',
+            'grocery': 'Grocery Store',
+            'restaurant': 'Restaurant',
+            'hotel': 'Hotel',
+            'blue heron': 'Blue Heron',
+            'festival': 'Event Vendor',
+            'music': 'Music Venue'
+        }
+        
+        # Try to match patterns
+        for pattern, vendor in vendor_patterns.items():
+            if pattern in base_name:
+                return vendor
+        
+        # Extract first meaningful word if no pattern matches
+        words = base_name.split()
+        meaningful_words = [w for w in words if len(w) > 2 and w not in ['receipt', 'img', 'scan', 'photo']]
+        
+        if meaningful_words:
+            return meaningful_words[0].title()
+        
         return "Unknown"
 
 # Synchronous wrapper functions for easy integration with existing Flask app

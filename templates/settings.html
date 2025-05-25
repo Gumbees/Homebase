@@ -19,412 +19,217 @@
                 
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">AI Provider Configuration</h5>
+                        <h5 class="mb-0"><i class="fas fa-robot me-2"></i>OpenAI Configuration</h5>
                     </div>
                     <div class="card-body">
-                        <p>Configure different AI providers for receipt processing, object analysis, and other AI-powered features.</p>
+                        <p>Configure your OpenAI API settings for receipt processing and AI features.</p>
                         
-                        <!-- Nav tabs for provider settings -->
-                        <ul class="nav nav-tabs mb-3" id="aiProviderTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="anthropic-tab" data-bs-toggle="tab" data-bs-target="#anthropic" type="button" role="tab" aria-controls="anthropic" aria-selected="true">
-                                    <i class="fas fa-robot"></i> Anthropic (Claude)
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="openai-tab" data-bs-toggle="tab" data-bs-target="#openai" type="button" role="tab" aria-controls="openai" aria-selected="false">
-                                    <i class="fas fa-brain"></i> OpenAI
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="llm-studio-tab" data-bs-toggle="tab" data-bs-target="#llm-studio" type="button" role="tab" aria-controls="llm-studio" aria-selected="false">
-                                    <i class="fas fa-laptop-code"></i> LLM Studio (Local)
-                                </button>
-                            </li>
-                        </ul>
-                        
-                        <!-- Tab content -->
-                        <div class="tab-content" id="aiProviderTabsContent">
-                            <!-- Anthropic Settings -->
-                            <div class="tab-pane fade show active" id="anthropic" role="tabpanel" aria-labelledby="anthropic-tab">
-                                <form method="POST" action="{{ url_for('update_ai_settings', provider='anthropic') }}">
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="anthropic-enabled" name="is_enabled" {% if providers.anthropic.is_enabled %}checked{% endif %}>
-                                                <label class="form-check-label" for="anthropic-enabled">Enable Anthropic Claude</label>
-                                            </div>
-                                            
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="anthropic-default" name="is_default" {% if providers.anthropic.is_default %}checked{% endif %}>
-                                                <label class="form-check-label" for="anthropic-default">Set as Default Provider</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="anthropic-api-key" class="form-label">API Key</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="anthropic-api-key" name="api_key" value="{{ providers.anthropic.api_key|default('', true) }}" placeholder="Enter your Anthropic API key" autocomplete="off">
-                                                <button class="btn btn-outline-secondary toggle-password" type="button" data-target="anthropic-api-key">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                            <div class="form-text">Your API key is encrypted and stored securely.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="anthropic-default-model" class="form-label">Default Model</label>
-                                            <select class="form-select" id="anthropic-default-model" name="default_model">
-                                                <option value="claude-3-5-sonnet-20241022" {% if providers.anthropic.config.default_model == 'claude-3-5-sonnet-20241022' %}selected{% endif %}>Claude 3.5 Sonnet (Latest)</option>
-                                                <option value="claude-3-opus-20240229" {% if providers.anthropic.config.default_model == 'claude-3-opus-20240229' %}selected{% endif %}>Claude 3 Opus</option>
-                                                <option value="claude-3-haiku-20240307" {% if providers.anthropic.config.default_model == 'claude-3-haiku-20240307' %}selected{% endif %}>Claude 3 Haiku</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="anthropic-vision-model" class="form-label">Vision Model (for Image Analysis)</label>
-                                            <select class="form-select" id="anthropic-vision-model" name="vision_model">
-                                                <option value="claude-3-opus-20240229" {% if providers.anthropic.config.vision_model == 'claude-3-opus-20240229' %}selected{% endif %}>Claude 3 Opus (Best for Images)</option>
-                                                <option value="claude-3-5-sonnet-20241022" {% if providers.anthropic.config.vision_model == 'claude-3-5-sonnet-20241022' %}selected{% endif %}>Claude 3.5 Sonnet</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="anthropic-timeout" class="form-label">API Timeout (seconds)</label>
-                                            <input type="number" class="form-control" id="anthropic-timeout" name="timeout" value="{{ providers.anthropic.config.timeout|default(180, true) }}" min="30" max="300">
-                                            <div class="form-text">Longer timeout helps with large images but may cause worker timeouts.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <button type="submit" class="btn btn-primary">Save Anthropic Settings</button>
-                                    <button type="button" class="btn btn-outline-secondary ms-2 test-connection" data-provider="anthropic">Test Connection</button>
-                                </form>
-                            </div>
-                            
-                            <!-- OpenAI Settings -->
-                            <div class="tab-pane fade" id="openai" role="tabpanel" aria-labelledby="openai-tab">
-                                <form method="POST" action="{{ url_for('update_ai_settings', provider='openai') }}">
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="openai-enabled" name="is_enabled" {% if providers.openai.is_enabled %}checked{% endif %}>
-                                                <label class="form-check-label" for="openai-enabled">Enable OpenAI</label>
-                                            </div>
-                                            
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="openai-default" name="is_default" {% if providers.openai.is_default %}checked{% endif %}>
-                                                <label class="form-check-label" for="openai-default">Set as Default Provider</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="openai-api-key" class="form-label">API Key</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="openai-api-key" name="api_key" value="{{ providers.openai.api_key|default('', true) }}" placeholder="Enter your OpenAI API key" autocomplete="off">
-                                                <button class="btn btn-outline-secondary toggle-password" type="button" data-target="openai-api-key">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                            <div class="form-text">Your API key is encrypted and stored securely.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="openai-default-model" class="form-label">Default Model</label>
-                                            <select class="form-select" id="openai-default-model" name="default_model">
-                                                <option value="gpt-4o" {% if providers.openai.config.default_model == 'gpt-4o' %}selected{% endif %}>GPT-4o (Latest)</option>
-                                                <option value="gpt-4-turbo" {% if providers.openai.config.default_model == 'gpt-4-turbo' %}selected{% endif %}>GPT-4 Turbo</option>
-                                                <option value="gpt-4" {% if providers.openai.config.default_model == 'gpt-4' %}selected{% endif %}>GPT-4</option>
-                                                <option value="gpt-3.5-turbo" {% if providers.openai.config.default_model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="openai-vision-model" class="form-label">Vision Model (for Image Analysis)</label>
-                                            <select class="form-select" id="openai-vision-model" name="vision_model">
-                                                <option value="gpt-4o" {% if providers.openai.config.vision_model == 'gpt-4o' %}selected{% endif %}>GPT-4o (Best for Images)</option>
-                                                <option value="gpt-4-vision-preview" {% if providers.openai.config.vision_model == 'gpt-4-vision-preview' %}selected{% endif %}>GPT-4 Vision</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="openai-image-model" class="form-label">Image Generation Model</label>
-                                            <select class="form-select" id="openai-image-model" name="image_model">
-                                                <option value="dall-e-3" {% if providers.openai.config.image_model == 'dall-e-3' %}selected{% endif %}>DALL-E 3</option>
-                                                <option value="dall-e-2" {% if providers.openai.config.image_model == 'dall-e-2' %}selected{% endif %}>DALL-E 2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="openai-timeout" class="form-label">API Timeout (seconds)</label>
-                                            <input type="number" class="form-control" id="openai-timeout" name="timeout" value="{{ providers.openai.config.timeout|default(120, true) }}" min="30" max="300">
-                                        </div>
-                                    </div>
-                                    
-                                    <button type="submit" class="btn btn-primary">Save OpenAI Settings</button>
-                                    <button type="button" class="btn btn-outline-secondary ms-2 test-connection" data-provider="openai">Test Connection</button>
-                                </form>
-                            </div>
-                            
-                            <!-- LLM Studio Settings -->
-                            <div class="tab-pane fade" id="llm-studio" role="tabpanel" aria-labelledby="llm-studio-tab">
-                                <form method="POST" action="{{ url_for('update_ai_settings', provider='llm_studio') }}">
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-info-circle"></i> LLM Studio provides local AI model functionality without sending data to external services. Models run on your own infrastructure.
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="llm-studio-enabled" name="is_enabled" {% if providers.llm_studio.is_enabled %}checked{% endif %}>
-                                                <label class="form-check-label" for="llm-studio-enabled">Enable LLM Studio Integration</label>
-                                            </div>
-                                            
-                                            <div class="form-check form-switch mb-3">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="llm-studio-default" name="is_default" {% if providers.llm_studio.is_default %}checked{% endif %}>
-                                                <label class="form-check-label" for="llm-studio-default">Set as Default Provider</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="llm-studio-api-endpoint" class="form-label">API Endpoint</label>
-                                            <input type="text" class="form-control" id="llm-studio-api-endpoint" name="api_endpoint" value="{{ providers.llm_studio.api_endpoint|default('http://localhost:8000/v1', true) }}" placeholder="Enter the LLM Studio API endpoint">
-                                            <div class="form-text">The URL where your LLM Studio server is running.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="llm-studio-api-key" class="form-label">API Key (if required)</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="llm-studio-api-key" name="api_key" value="{{ providers.llm_studio.api_key|default('', true) }}" placeholder="Enter your LLM Studio API key (if needed)" autocomplete="off">
-                                                <button class="btn btn-outline-secondary toggle-password" type="button" data-target="llm-studio-api-key">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                            <div class="form-text">Most local installations don't require an API key.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="llm-studio-timeout" class="form-label">API Timeout (seconds)</label>
-                                            <input type="number" class="form-control" id="llm-studio-timeout" name="timeout" value="{{ providers.llm_studio.config.timeout|default(60, true) }}" min="30" max="300">
-                                            <div class="form-text">Increase this value if your local models are slower.</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-12">
-                                            <div class="alert alert-warning">
-                                                <i class="fas fa-exclamation-triangle"></i> <strong>Note:</strong> LLM Studio currently has limited support for features like PDF processing. Use only with compatible image formats. Some complex tasks may not work with all local models.
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <button type="submit" class="btn btn-primary">Save LLM Studio Settings</button>
-                                    <button type="button" class="btn btn-outline-secondary ms-2 test-connection" data-provider="llm_studio">Test Connection</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">AI Feature Configuration</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ url_for('update_ai_features') }}">
+                        <form method="POST" action="{{ url_for('update_openai_settings') }}">
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="openai-enabled" name="is_enabled" {% if providers.openai.is_enabled %}checked{% endif %} {% if providers.openai.api_key_source == 'environment' %}disabled{% endif %}>
+                                        <label class="form-check-label" for="openai-enabled">Enable OpenAI</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="openai-api-key" class="form-label">API Key</label>
+                                    <div class="input-group">
+                                        {% if providers.openai.api_key_source == 'environment' %}
+                                            <input type="password" class="form-control" id="openai-api-key" name="api_key" value="{{ providers.openai.api_key }}" placeholder="API key from environment" autocomplete="off" readonly>
+                                            <button class="btn btn-outline-secondary toggle-password" type="button" data-target="openai-api-key" data-actual-key="{{ providers.openai.api_key_actual }}">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        {% else %}
+                                            <input type="password" class="form-control" id="openai-api-key" name="api_key" value="{{ providers.openai.api_key|default('', true) }}" placeholder="Enter your OpenAI API key" autocomplete="off">
+                                            <button class="btn btn-outline-secondary toggle-password" type="button" data-target="openai-api-key">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                    {% if providers.openai.api_key_source == 'environment' %}
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle text-info me-1"></i>
+                                            API key is loaded from environment variable (stack.env). Cannot be modified here.
+                                        </div>
+                                    {% else %}
+                                        <div class="form-text">Your API key is encrypted and stored securely in the database.</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="openai-default-model" class="form-label">Default Model</label>
+                                    <select class="form-select" id="openai-default-model" name="default_model" {% if providers.openai.api_key_source == 'environment' %}disabled{% endif %}>
+                                        <option value="gpt-4o" {% if providers.openai.config.default_model == 'gpt-4o' %}selected{% endif %}>GPT-4o (Latest)</option>
+                                        <option value="gpt-4-turbo" {% if providers.openai.config.default_model == 'gpt-4-turbo' %}selected{% endif %}>GPT-4 Turbo</option>
+                                        <option value="gpt-4" {% if providers.openai.config.default_model == 'gpt-4' %}selected{% endif %}>GPT-4</option>
+                                        <option value="gpt-3.5-turbo" {% if providers.openai.config.default_model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="openai-vision-model" class="form-label">Vision Model (for Image Analysis)</label>
+                                    <select class="form-select" id="openai-vision-model" name="vision_model" {% if providers.openai.api_key_source == 'environment' %}disabled{% endif %}>
+                                        <option value="gpt-4o" {% if providers.openai.config.vision_model == 'gpt-4o' %}selected{% endif %}>GPT-4o (Best for Images)</option>
+                                        <option value="gpt-4-vision-preview" {% if providers.openai.config.vision_model == 'gpt-4-vision-preview' %}selected{% endif %}>GPT-4 Vision</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="openai-image-model" class="form-label">Image Generation Model</label>
+                                    <select class="form-select" id="openai-image-model" name="image_model" {% if providers.openai.api_key_source == 'environment' %}disabled{% endif %}>
+                                        <option value="dall-e-3" {% if providers.openai.config.image_model == 'dall-e-3' %}selected{% endif %}>DALL-E 3</option>
+                                        <option value="dall-e-2" {% if providers.openai.config.image_model == 'dall-e-2' %}selected{% endif %}>DALL-E 2</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="openai-timeout" class="form-label">API Timeout (seconds)</label>
+                                    <input type="number" class="form-control" id="openai-timeout" name="timeout" value="{{ providers.openai.config.timeout|default(120, true) }}" min="30" max="300" {% if providers.openai.api_key_source == 'environment' %}readonly{% endif %}>
+                                </div>
+                            </div>
+                            
+                            {% if providers.openai.api_key_source == 'environment' %}
+                                <button type="submit" class="btn btn-secondary" disabled>
+                                    <i class="fas fa-lock me-1"></i>Settings Cannot Be Modified (Environment)
+                                </button>
+                            {% else %}
+                                <button type="submit" class="btn btn-primary">Save OpenAI Settings</button>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-secondary ms-2 test-connection" data-provider="openai">Test Connection</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- AI Features Configuration -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-magic me-2"></i>AI Features</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Configure automated AI features for receipt processing and inventory management.</p>
+                        
+                        <form method="POST" action="{{ url_for('update_ai_features') }}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch" id="auto-analyze" name="auto_analyze" {% if features.auto_analyze %}checked{% endif %}>
-                                        <label class="form-check-label" for="auto-analyze">Auto-analyze Line Items</label>
-                                        <div class="form-text">Automatically extract and analyze line items when processing receipts.</div>
+                                        <label class="form-check-label" for="auto-analyze">Auto-analyze receipts</label>
+                                        <div class="form-text">Automatically analyze uploaded receipts with AI</div>
                                     </div>
                                     
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch" id="auto-link" name="auto_link" {% if features.auto_link %}checked{% endif %}>
-                                        <label class="form-check-label" for="auto-link">Auto-link Line Items</label>
-                                        <div class="form-text">Suggest linking line items to existing objects when possible.</div>
+                                        <label class="form-check-label" for="auto-link">Auto-link objects</label>
+                                        <div class="form-text">Automatically link related objects and receipts</div>
                                     </div>
                                     
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch" id="auto-vendor" name="auto_vendor" {% if features.auto_vendor %}checked{% endif %}>
-                                        <label class="form-check-label" for="auto-vendor">Auto-create Vendors</label>
-                                        <div class="form-text">Automatically create vendor records from receipts.</div>
+                                        <label class="form-check-label" for="auto-vendor">Auto-vendor detection</label>
+                                        <div class="form-text">Automatically detect and create vendor organizations</div>
                                     </div>
                                     
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch" id="auto-categorize" name="auto_categorize" {% if features.auto_categorize %}checked{% endif %}>
-                                        <label class="form-check-label" for="auto-categorize">Auto-categorize Objects</label>
-                                        <div class="form-text">Use AI to suggest categories for new objects.</div>
+                                        <label class="form-check-label" for="auto-categorize">Auto-categorize objects</label>
+                                        <div class="form-text">Automatically categorize objects based on AI analysis</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="daily-limit" class="form-label">Daily AI Processing Limit</label>
+                                        <input type="number" class="form-control" id="daily-limit" name="daily_limit" value="{{ features.daily_limit|default(30, true) }}" min="5" max="100">
+                                        <div class="form-text">Maximum number of AI processing tasks per day</div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="daily-limit" class="form-label">Daily AI Evaluation Limit</label>
-                                    <input type="number" class="form-control" id="daily-limit" name="daily_limit" value="{{ features.daily_limit|default(30, true) }}" min="5" max="100">
-                                    <div class="form-text">Maximum number of AI evaluations to process per day (for scheduled re-evaluations).</div>
-                                </div>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary">Save Feature Settings</button>
+                            <button type="submit" class="btn btn-primary">Save AI Features</button>
                         </form>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Modal for connection test results -->
-    <div class="modal fade" id="connectionTestModal" tabindex="-1" aria-labelledby="connectionTestModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="connectionTestModalLabel">Connection Test Results</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="connection-test-results">
-                        <div class="d-flex justify-content-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Testing connection...</span>
-                            </div>
-                        </div>
-                        <p class="text-center mt-3">Testing connection to AI provider...</p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-{% endblock %}
 
-{% block scripts %}
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Toggle password visibility
-            document.querySelectorAll('.toggle-password').forEach(button => {
-                button.addEventListener('click', function() {
-                    const targetId = this.getAttribute('data-target');
-                    const input = document.getElementById(targetId);
-                    const icon = this.querySelector('i');
-                    
-                    if (input.type === 'password') {
-                        input.type = 'text';
-                        icon.classList.remove('fa-eye');
-                        icon.classList.add('fa-eye-slash');
-                    } else {
-                        input.type = 'password';
-                        icon.classList.remove('fa-eye-slash');
-                        icon.classList.add('fa-eye');
+        // Password toggle functionality
+        document.querySelectorAll('.toggle-password').forEach(button => {
+            button.addEventListener('click', function() {
+                const target = document.getElementById(this.getAttribute('data-target'));
+                const icon = this.querySelector('i');
+                const actualKey = this.getAttribute('data-actual-key');
+                
+                if (target.type === 'password') {
+                    target.type = 'text';
+                    // If this is an environment key, show the actual value
+                    if (actualKey) {
+                        target.value = actualKey;
                     }
-                });
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    target.type = 'password';
+                    // If this is an environment key, restore the masked value
+                    if (actualKey) {
+                        const maskedKey = "*".repeat(Math.max(0, actualKey.length - 8)) + actualKey.slice(-8);
+                        target.value = maskedKey;
+                    }
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
             });
-            
-            // Handle connection tests
-            document.querySelectorAll('.test-connection').forEach(button => {
-                button.addEventListener('click', function() {
-                    const provider = this.getAttribute('data-provider');
-                    const modal = new bootstrap.Modal(document.getElementById('connectionTestModal'));
-                    modal.show();
-                    
-                    // Reset results display
-                    document.getElementById('connection-test-results').innerHTML = `
-                        <div class="d-flex justify-content-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Testing connection...</span>
-                            </div>
-                        </div>
-                        <p class="text-center mt-3">Testing connection to ${provider} API...</p>
-                    `;
-                    
-                    // Make the AJAX request
-                    fetch(`/test-ai-connection/${provider}`, {
-                        method: 'POST'
-                    })
+        });
+
+        // Test connection functionality
+        document.querySelectorAll('.test-connection').forEach(button => {
+            button.addEventListener('click', function() {
+                const provider = this.getAttribute('data-provider');
+                const originalText = this.textContent;
+                
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+                
+                fetch('/api/check-api-connection')
                     .then(response => response.json())
                     .then(data => {
-                        let html = '';
                         if (data.success) {
-                            html = `
-                                <div class="alert alert-success">
-                                    <i class="fas fa-check-circle"></i> <strong>Success!</strong> Connection to ${provider} API is working properly.
-                                </div>
-                                <dl class="row">
-                                    <dt class="col-sm-4">API Status:</dt>
-                                    <dd class="col-sm-8">Connected</dd>
-                                    <dt class="col-sm-4">Model:</dt>
-                                    <dd class="col-sm-8">${data.model || 'Default'}</dd>
-                                </dl>
-                            `;
+                            this.innerHTML = '<i class="fas fa-check me-1"></i>Connected';
+                            this.className = 'btn btn-success ms-2';
                         } else {
-                            html = `
-                                <div class="alert alert-danger">
-                                    <i class="fas fa-exclamation-circle"></i> <strong>Error!</strong> Connection to ${provider} API failed.
-                                </div>
-                                <dl class="row">
-                                    <dt class="col-sm-4">Error Type:</dt>
-                                    <dd class="col-sm-8">${data.error_type || 'Unknown'}</dd>
-                                    <dt class="col-sm-4">Message:</dt>
-                                    <dd class="col-sm-8">${data.message || 'No message available'}</dd>
-                                </dl>
-                                <div class="alert alert-warning">
-                                    <small>Please check your API key and settings, then try again.</small>
-                                </div>
-                            `;
+                            this.innerHTML = '<i class="fas fa-times me-1"></i>Failed';
+                            this.className = 'btn btn-danger ms-2';
                         }
-                        document.getElementById('connection-test-results').innerHTML = html;
+                        
+                        setTimeout(() => {
+                            this.disabled = false;
+                            this.textContent = originalText;
+                            this.className = 'btn btn-outline-secondary ms-2 test-connection';
+                        }, 3000);
                     })
                     .catch(error => {
-                        document.getElementById('connection-test-results').innerHTML = `
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-circle"></i> <strong>Error!</strong> Request failed.
-                            </div>
-                            <p>An error occurred while testing the connection. Please try again later.</p>
-                            <pre class="bg-dark text-light p-2 mt-2"><code>${error.message}</code></pre>
-                        `;
+                        this.innerHTML = '<i class="fas fa-times me-1"></i>Error';
+                        this.className = 'btn btn-danger ms-2';
+                        
+                        setTimeout(() => {
+                            this.disabled = false;
+                            this.textContent = originalText;
+                            this.className = 'btn btn-outline-secondary ms-2 test-connection';
+                        }, 3000);
                     });
-                });
-            });
-            
-            // Handle default provider radio buttons
-            document.querySelectorAll('input[name="is_default"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    if (this.checked) {
-                        // Uncheck all other default provider radios
-                        document.querySelectorAll('input[name="is_default"]').forEach(otherRadio => {
-                            if (otherRadio !== this) {
-                                otherRadio.checked = false;
-                            }
-                        });
-                    }
-                });
             });
         });
     </script>

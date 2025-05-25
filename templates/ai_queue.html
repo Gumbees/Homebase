@@ -466,92 +466,245 @@
                                     {% endif %}
                                 </div>
 
-                                <!-- Action Buttons -->
+                                <!-- Enhanced Creation Controls -->
                                 {% if task.data.ai_analysis %}
+                                <div class="card border-success mb-3">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="fas fa-tasks me-2"></i>What would you like to create?</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <form method="post" action="{{ url_for('approve_receipt_with_selections', task_id=task.id) }}" id="creation-form-{{ task.id }}">
+                                            
+                                            <!-- Always create invoice -->
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" name="create_invoice" id="create_invoice_{{ task.id }}" checked disabled>
+                                                <label class="form-check-label fw-bold" for="create_invoice_{{ task.id }}">
+                                                    <i class="fas fa-receipt text-primary me-2"></i>Create Invoice
+                                                    <small class="text-muted d-block">Financial record for this receipt (always created)</small>
+                                                </label>
+                                            </div>
+
+                                            <!-- Organization creation -->
+                                            {% if task.extracted_receipt_data.vendor_name and task.extracted_receipt_data.vendor_name != 'Unknown Vendor' %}
+                                                {% if task.creation_tracking_info and task.creation_tracking_info.can_create_organization %}
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="create_organization" id="create_org_{{ task.id }}" value="on">
+                                                    <label class="form-check-label" for="create_org_{{ task.id }}">
+                                                        <i class="fas fa-building text-warning me-2"></i>Create Organization
+                                                        <span class="fw-bold text-primary">{{ task.extracted_receipt_data.vendor_name }}</span>
+                                                        <small class="text-muted d-block">Promote vendor to full organization record</small>
+                                                    </label>
+                                                </div>
+                                                                                                 {% elif task.creation_tracking_info %}
+                                                 <div class="form-check mb-3">
+                                                     <input class="form-check-input" type="checkbox" disabled>
+                                                     <label class="form-check-label text-muted">
+                                                         <i class="fas fa-building me-2"></i>Organization Already Created
+                                                         <span class="fw-bold">{{ task.extracted_receipt_data.vendor_name }}</span>
+                                                         <small class="d-block">✓ Organization record already exists for this receipt</small>
+                                                     </label>
+                                                 </div>
+                                                {% else %}
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="create_organization" id="create_org_{{ task.id }}" value="on">
+                                                    <label class="form-check-label" for="create_org_{{ task.id }}">
+                                                        <i class="fas fa-building text-warning me-2"></i>Create Organization
+                                                        <span class="fw-bold text-primary">{{ task.extracted_receipt_data.vendor_name }}</span>
+                                                        <small class="text-muted d-block">Promote vendor to full organization record</small>
+                                                    </label>
+                                                </div>
+                                                {% endif %}
+                                            {% endif %}
+
+                                            <!-- Calendar event creation -->
+                                            {% if task.extracted_receipt_data.event_details %}
+                                                {% if task.creation_tracking_info and task.creation_tracking_info.can_create_event %}
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="create_events" id="create_events_{{ task.id }}" value="on">
+                                                    <label class="form-check-label" for="create_events_{{ task.id }}">
+                                                        <i class="fas fa-calendar-alt text-info me-2"></i>Create Calendar Event
+                                                        {% if task.extracted_receipt_data.event_details.event_name %}
+                                                            <span class="fw-bold text-primary">{{ task.extracted_receipt_data.event_details.event_name }}</span>
+                                                        {% endif %}
+                                                        {% if task.extracted_receipt_data.event_details.event_date %}
+                                                            <small class="text-muted d-block">{{ task.extracted_receipt_data.event_details.event_date }}</small>
+                                                        {% endif %}
+                                                    </label>
+                                                </div>
+                                                {% elif task.creation_tracking_info %}
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" disabled>
+                                                    <label class="form-check-label text-muted">
+                                                        <i class="fas fa-calendar-alt me-2"></i>Calendar Event Already Created
+                                                        {% if task.extracted_receipt_data.event_details.event_name %}
+                                                            <span class="fw-bold">{{ task.extracted_receipt_data.event_details.event_name }}</span>
+                                                        {% endif %}
+                                                        <small class="d-block">✓ Event already exists for this receipt</small>
+                                                    </label>
+                                                </div>
+                                                {% else %}
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="create_events" id="create_events_{{ task.id }}" value="on">
+                                                    <label class="form-check-label" for="create_events_{{ task.id }}">
+                                                        <i class="fas fa-calendar-alt text-info me-2"></i>Create Calendar Event
+                                                        {% if task.extracted_receipt_data.event_details.event_name %}
+                                                            <span class="fw-bold text-primary">{{ task.extracted_receipt_data.event_details.event_name }}</span>
+                                                        {% endif %}
+                                                        {% if task.extracted_receipt_data.event_details.event_date %}
+                                                            <small class="text-muted d-block">{{ task.extracted_receipt_data.event_details.event_date }}</small>
+                                                        {% endif %}
+                                                    </label>
+                                                </div>
+                                                {% endif %}
+                                            {% endif %}
+
+                                            <!-- People creation -->
+                                            {% if task.extracted_receipt_data.people_found %}
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">
+                                                    <i class="fas fa-users text-success me-2"></i>Create People ({{ task.extracted_receipt_data.people_found|length }} detected)
+                                                </label>
+                                                {% for person in task.extracted_receipt_data.people_found %}
+                                                <div class="form-check ms-3">
+                                                    <input class="form-check-input" type="checkbox" name="create_people" value="{{ loop.index0 }}" id="create_person_{{ task.id }}_{{ loop.index0 }}">
+                                                    <label class="form-check-label" for="create_person_{{ task.id }}_{{ loop.index0 }}">
+                                                        <span class="fw-bold">{{ person.person_name }}</span>
+                                                        <small class="text-muted">({{ person.role }}, {{ (person.confidence * 100)|round }}% confidence)</small>
+                                                    </label>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+
+                                            <!-- Line item objects creation - Enhanced with expandable options -->
+                                            {% if task.extracted_receipt_data.line_items %}
+                                            <div class="mb-3">
+                                                <div class="card bg-dark">
+                                                    <div class="card-header p-2">
+                                                        <button class="btn btn-sm btn-outline-light w-100" type="button" data-bs-toggle="collapse" data-bs-target="#lineItemsCard{{ task.id }}" aria-expanded="true">
+                                                            <i class="fas fa-boxes me-1"></i>Line Item Objects ({{ task.extracted_receipt_data.line_items|length }})
+                                                            <i class="fas fa-chevron-down float-end"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="collapse show" id="lineItemsCard{{ task.id }}">
+                                                        <div class="card-body p-2">
+                                                            <!-- Selection Controls -->
+                                                            <div class="btn-group btn-group-sm mb-3 w-100" role="group">
+                                                                <button type="button" class="btn btn-outline-primary" onclick="selectAllLineItems({{ task.id }})">
+                                                                    <i class="fas fa-check-square me-1"></i>All
+                                                                </button>
+                                                                <button type="button" class="btn btn-outline-secondary" onclick="selectNoneLineItems({{ task.id }})">
+                                                                    <i class="fas fa-square me-1"></i>None
+                                                                </button>
+                                                                <button type="button" class="btn btn-outline-success" onclick="selectAssetsOnly({{ task.id }})">
+                                                                    <i class="fas fa-box me-1"></i>Assets Only
+                                                                </button>
+                                                                <button type="button" class="btn btn-outline-warning" onclick="selectConsumablesOnly({{ task.id }})">
+                                                                    <i class="fas fa-shopping-cart me-1"></i>Consumables Only
+                                                                </button>
+                                                            </div>
+                                                            
+                                                            <!-- Line Items List -->
+                                                            {% for item in task.extracted_receipt_data.line_items %}
+                                                            <div class="border rounded p-2 mb-2 bg-secondary" id="lineItem{{ task.id }}_{{ loop.index0 }}">
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input line-item-checkbox" type="checkbox" name="create_objects" value="{{ loop.index0 }}" id="create_object_{{ task.id }}_{{ loop.index0 }}" 
+                                                                           {% if task.creation_tracking_info and task.creation_tracking_info.line_item_tracking.get(loop.index0, {}).get('already_created') %}disabled{% else %}checked{% endif %}>
+                                                                    <label class="form-check-label w-100" for="create_object_{{ task.id }}_{{ loop.index0 }}">
+                                                                        <div class="d-flex justify-content-between align-items-start">
+                                                                            <div class="flex-grow-1">
+                                                                                <span class="fw-bold d-block text-truncate">{{ item.description }}</span>
+                                                                                <small class="text-muted">
+                                                                                    ${{ "%.2f"|format(item.unit_price or 0) }} × {{ item.quantity or 1 }} = ${{ "%.2f"|format((item.unit_price or 0) * (item.quantity or 1)) }}
+                                                                                    {% if task.creation_tracking_info and task.creation_tracking_info.line_item_tracking.get(loop.index0, {}).get('already_created') %}
+                                                                                        <br><span class="text-success"><i class="fas fa-check-circle me-1"></i>Object already created</span>
+                                                                                    {% endif %}
+                                                                                </small>
+                                                                            </div>
+                                                                            <div class="text-end">
+                                                                                <span class="badge bg-info">
+                                                                                    {% if item.object_type %}
+                                                                                        {{ item.object_type|title }}
+                                                                                    {% elif item.extracted_metadata and item.extracted_metadata.suggested_object_type %}
+                                                                                        {{ item.extracted_metadata.suggested_object_type|title }}
+                                                                                    {% else %}
+                                                                                        Auto-Detect
+                                                                                    {% endif %}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </label>
+                                                                </div>
+                                                                
+                                                                <!-- Expandable Options -->
+                                                                <div class="mt-2">
+                                                                    <button type="button" class="btn btn-xs btn-outline-light" onclick="toggleItemOptions({{ task.id }}, {{ loop.index0 }})">
+                                                                        <i class="fas fa-cog me-1"></i>Options
+                                                                    </button>
+                                                                </div>
+                                                                
+                                                                <div class="collapse mt-2" id="itemOptions{{ task.id }}_{{ loop.index0 }}">
+                                                                    <div class="card card-body p-2 bg-darker">
+                                                                        <div class="row g-2">
+                                                                            <div class="col-md-6">
+                                                                                <label class="form-label form-label-sm">Override Type:</label>
+                                                                                <select class="form-select form-select-sm" name="object_type_{{ loop.index0 }}">
+                                                                                    <option value="">
+                                                                                        {% if item.extracted_metadata and item.extracted_metadata.suggested_object_type %}
+                                                                                            Auto-Detect ({{ item.extracted_metadata.suggested_object_type|title }})
+                                                                                        {% else %}
+                                                                                            Auto-Detect (Recommended)
+                                                                                        {% endif %}
+                                                                                    </option>
+                                                                                    <option value="asset">Asset (Long-term item)</option>
+                                                                                    <option value="consumable">Consumable (Used up)</option>
+                                                                                    <option value="component">Component (Part of something)</option>
+                                                                                    <option value="service">Service (Labor/Work)</option>
+                                                                                    <option value="software">Software</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div class="col-md-6">
+                                                                                <label class="form-label form-label-sm">Category:</label>
+                                                                                <input type="text" class="form-control form-control-sm" name="category_{{ loop.index0 }}" 
+                                                                                       value="{% if item.extracted_metadata and item.extracted_metadata.suggested_category %}{{ item.extracted_metadata.suggested_category }}{% elif item.extracted_metadata and item.extracted_metadata.category_suggestions and item.extracted_metadata.category_suggestions|length > 0 %}{{ item.extracted_metadata.category_suggestions[0] }}{% endif %}"
+                                                                                       placeholder="{% if item.extracted_metadata and (item.extracted_metadata.suggested_category or (item.extracted_metadata.category_suggestions and item.extracted_metadata.category_suggestions|length > 0)) %}{{ item.extracted_metadata.suggested_category or item.extracted_metadata.category_suggestions[0] }}{% else %}AI will suggest category{% endif %}">
+                                                                            </div>
+                                                                            <div class="col-12">
+                                                                                <label class="form-label form-label-sm">Custom Name (optional):</label>
+                                                                                <input type="text" class="form-control form-control-sm" name="custom_name_{{ loop.index0 }}" placeholder="Override detected name" value="{{ item.description }}">
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+
+                                            <!-- Action buttons -->
+                                            <div class="d-grid gap-2 mt-4">
+                                                <button type="submit" class="btn btn-success btn-lg">
+                                                    <i class="fas fa-check-double me-2"></i>Create Selected Items
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <!-- Additional Actions -->
                                 <div class="d-grid gap-2">
                                     <a href="{{ url_for('ai_queue_detail', task_id=task.id) }}" class="btn btn-info">
                                         <i class="fas fa-eye me-2"></i>View Details
                                     </a>
                                     
-                                    <form method="post" action="{{ url_for('approve_receipt', task_id=task.id) }}" class="d-inline">
-                                        <button type="submit" class="btn btn-success btn-lg w-100">
-                                            <i class="fas fa-check me-2"></i>Approve & Create Invoice
-                                        </button>
-                                    </form>
-                                    
                                     <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ task.id }}">
                                         <i class="fas fa-times me-2"></i>Reject
                                     </button>
                                     
-                                    <!-- Object Creation Shortcuts -->
-                                    {% if task.extracted_receipt_data.line_items %}
-                                        <div class="dropdown">
-                                            <button class="btn btn-outline-primary dropdown-toggle btn-sm w-100" type="button" data-bs-toggle="dropdown">
-                                                <i class="fas fa-plus me-1"></i>Quick Create Objects ({{ task.extracted_receipt_data.line_items|length }})
-                                            </button>
-                                            <ul class="dropdown-menu w-100">
-                                                {% for item in task.extracted_receipt_data.line_items %}
-                                                    {% if item.get('create_object') and item.get('object_type') %}
-                                                    <li>
-                                                        <button class="dropdown-item create-object-from-queue-btn" 
-                                                                data-task-id="{{ task.id }}"
-                                                                data-item-index="{{ loop.index0 }}"
-                                                                data-object-type="{{ item.object_type }}"
-                                                                data-category="{{ item.get('category', '') }}"
-                                                                data-description="{{ item.get('description', '') }}"
-                                                                data-unit-price="{{ item.get('unit_price', 0) }}"
-                                                                data-quantity="{{ item.get('quantity', 1) }}">
-                                                            <i class="fas fa-{{ 'box' if item.object_type == 'asset' else 'shopping-cart' if item.object_type == 'consumable' else 'cog' if item.object_type == 'component' else 'hand-holding-heart' if item.object_type == 'service' else 'laptop-code' if item.object_type == 'software' else 'cube' }} me-1"></i>
-                                                            {{ item.object_type|title }}: {{ item.get('description', 'Unknown')[:30] }}{% if item.get('description', '')|length > 30 %}...{% endif %}
-                                                        </button>
-                                                    </li>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-                                    
-                                    <!-- People Creation -->
-                                    {% if task.extracted_receipt_data.people_found %}
-                                        <div class="dropdown">
-                                            <button class="btn btn-outline-success dropdown-toggle btn-sm w-100" type="button" data-bs-toggle="dropdown">
-                                                <i class="fas fa-users me-1"></i>Create People ({{ task.extracted_receipt_data.people_found|length }})
-                                            </button>
-                                            <ul class="dropdown-menu w-100">
-                                                {% for person in task.extracted_receipt_data.people_found %}
-                                                <li>
-                                                    <button class="dropdown-item create-person-from-queue-btn" 
-                                                            data-task-id="{{ task.id }}"
-                                                            data-person-name="{{ person.person_name }}"
-                                                            data-person-role="{{ person.get('role', '') }}"
-                                                            data-relationship="{{ person.get('relationship_to_purchase', '') }}">
-                                                        <i class="fas fa-user me-1"></i>{{ person.person_name }}
-                                                        <small class="text-muted">({{ person.get('role', 'Unknown role') }})</small>
-                                                    </button>
-                                                </li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-                                    
-                                    <!-- Event Creation -->
-                                    {% if task.extracted_receipt_data.event_details %}
-                                        <button class="btn btn-outline-info btn-sm w-100 create-event-from-queue-btn" 
-                                                data-task-id="{{ task.id }}">
-                                            <i class="fas fa-calendar-alt me-1"></i>Create Calendar Event
-                                            {% if task.extracted_receipt_data.event_details.get('event_name') %}
-                                                <br><small>{{ task.extracted_receipt_data.event_details.event_name }}</small>
-                                            {% endif %}
-                                        </button>
-                                    {% endif %}
-                                    
-                                    <!-- Vendor Promotion -->
-                                    {% if task.extracted_receipt_data.vendor_name and not task.extracted_receipt_data.get('vendor_is_organization') %}
-                                        <button class="btn btn-outline-warning btn-sm w-100 promote-vendor-from-queue-btn" 
-                                                data-vendor-name="{{ task.extracted_receipt_data.vendor_name }}">
-                                            <i class="fas fa-arrow-up me-1"></i>Promote "{{ task.extracted_receipt_data.vendor_name }}" to Organization
-                                        </button>
-                                    {% endif %}
+
                                 </div>
                                 {% else %}
                                 <div class="d-grid gap-2">
@@ -953,6 +1106,72 @@ function createAllObjects(taskId) {
 function approveWithObjects(taskId) {
     if (confirm('Approve receipt and create all objects?')) {
         createAllObjects(taskId);
+    }
+}
+
+// Enhanced Checkbox Selection Functions
+function selectAllObjects(taskId) {
+    document.querySelectorAll(`input[name="create_objects"]`).forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function selectNoneObjects(taskId) {
+    document.querySelectorAll(`input[name="create_objects"]`).forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+// New enhanced functions
+function selectAllLineItems(taskId) {
+    document.querySelectorAll(`#creation-form-${taskId} .line-item-checkbox`).forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function selectNoneLineItems(taskId) {
+    document.querySelectorAll(`#creation-form-${taskId} .line-item-checkbox`).forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+function selectAssetsOnly(taskId) {
+    // First uncheck all
+    selectNoneLineItems(taskId);
+    // Then check only assets (items with 'asset' in their badge text)
+    document.querySelectorAll(`#creation-form-${taskId} .line-item-checkbox`).forEach(checkbox => {
+        const lineItem = checkbox.closest('.border');
+        const badge = lineItem.querySelector('.badge');
+        if (badge && (badge.textContent.toLowerCase().includes('asset') || badge.textContent.toLowerCase().includes('auto-detect'))) {
+            checkbox.checked = true;
+        }
+    });
+}
+
+function selectConsumablesOnly(taskId) {
+    // First uncheck all
+    selectNoneLineItems(taskId);
+    // Then check only consumables
+    document.querySelectorAll(`#creation-form-${taskId} .line-item-checkbox`).forEach(checkbox => {
+        const lineItem = checkbox.closest('.border');
+        const badge = lineItem.querySelector('.badge');
+        if (badge && badge.textContent.toLowerCase().includes('consumable')) {
+            checkbox.checked = true;
+        }
+    });
+}
+
+function toggleItemOptions(taskId, itemIndex) {
+    const optionsId = `itemOptions${taskId}_${itemIndex}`;
+    const optionsElement = document.getElementById(optionsId);
+    const button = event.target.closest('button');
+    
+    if (optionsElement.classList.contains('show')) {
+        optionsElement.classList.remove('show');
+        button.innerHTML = '<i class="fas fa-cog me-1"></i>Options';
+    } else {
+        optionsElement.classList.add('show');
+        button.innerHTML = '<i class="fas fa-cog me-1"></i>Close Options';
     }
 }
 </script>

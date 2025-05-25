@@ -590,19 +590,20 @@ class AISettings(db.Model):
     
     @classmethod
     def initialize_defaults(cls):
-        """Initialize default AI provider settings."""
+        """Initialize default AI provider settings - OpenAI only."""
         defaults = [
             {
-                "provider": "anthropic",
+                "provider": "openai",
                 "is_enabled": True,
                 "is_default": True,
                 "config": {
-                    "default_model": "claude-3-5-sonnet-20241022",
-                    "vision_model": "claude-3-opus-20240229",
-                    "timeout": 180
+                    "default_model": "gpt-4o",
+                    "vision_model": "gpt-4o",
+                    "timeout": 180,
+                    "max_tokens": 4096,
+                    "temperature": 0.1
                 }
-            },
-            # ...other providers...
+            }
         ]
         
         for default in defaults:
@@ -611,6 +612,16 @@ class AISettings(db.Model):
             if not existing:
                 provider = cls(**default)
                 db.session.add(provider)
+            else:
+                # Update existing to be the default
+                existing.is_default = True
+                existing.is_enabled = True
+        
+        # Disable any other providers that might exist
+        other_providers = cls.query.filter(cls.provider != "openai").all()
+        for provider in other_providers:
+            provider.is_enabled = False
+            provider.is_default = False
         
         try:
             db.session.commit()
@@ -1085,6 +1096,97 @@ class User(db.Model):
         """Get the primary Person object linked to this user"""
         mapping = self.person_mappings.filter_by(is_primary=True).first()
         return mapping.person_object if mapping else None
+    
+    def get_linked_person_objects(self):
+        """Get all person objects linked to this user (both direct mappings and alias matches)"""
+        # Direct mappings
+        direct_persons = [mapping.person_object for mapping in self.person_mappings]
+        
+        # Alias-based matches
+        alias_persons = []
+        for alias in self.aliases:
+            if alias.is_active:
+                # Find person objects with names matching this alias
+                from sqlalchemy import or_
+                matching_persons = Object.query.filter(
+                    Object.object_type == 'person',
+                    or_(
+                        Object.data['name'].astext.ilike(f'%{alias.alias_name}%'),
+                        Object.data['first_name'].astext.ilike(f'%{alias.alias_name}%'),
+                        Object.data['last_name'].astext.ilike(f'%{alias.alias_name}%')
+                    )
+                ).all()
+                alias_persons.extend(matching_persons)
+        
+        # Combine and deduplicate
+        all_persons = list(set(direct_persons + alias_persons))
+        return all_persons
+    
+    def add_alias(self, alias_name, alias_type='name', confidence=1.0):
+        """Add a new alias for this user"""
+        existing = UserAlias.query.filter_by(
+            user_id=self.id, 
+            alias_name=alias_name
+        ).first()
+        
+        if not existing:
+            alias = UserAlias(
+                user_id=self.id,
+                alias_name=alias_name,
+                alias_type=alias_type,
+                confidence=confidence
+            )
+            db.session.add(alias)
+            return alias
+        return existing
+    
+    @classmethod
+    def find_similar_person_groups(cls, confidence_threshold=0.8):
+        """Find groups of similar person objects that could be consolidated"""
+        from sqlalchemy import text
+        
+        # Get all person objects
+        persons = Object.query.filter_by(object_type='person').all()
+        
+        groups = []
+        processed = set()
+        
+        for person in persons:
+            if person.id in processed:
+                continue
+                
+            person_name = person.data.get('name', '')
+            if not person_name:
+                continue
+            
+            # Find similar persons using fuzzy matching
+            similar_persons = [person]
+            import difflib
+            
+            for other_person in persons:
+                if other_person.id in processed or other_person.id == person.id:
+                    continue
+                    
+                other_name = other_person.data.get('name', '')
+                if not other_name:
+                    continue
+                
+                similarity = difflib.SequenceMatcher(
+                    None, 
+                    person_name.lower().strip(), 
+                    other_name.lower().strip()
+                ).ratio()
+                
+                if similarity >= confidence_threshold:
+                    similar_persons.append(other_person)
+                    processed.add(other_person.id)
+            
+            if len(similar_persons) > 1:
+                groups.append(similar_persons)
+            
+            processed.add(person.id)
+        
+        return groups
 
 class OrganizationContact(db.Model):
     """
@@ -1128,6 +1230,62 @@ class UserPersonMapping(db.Model):
     
     def __repr__(self):
         return f"<UserPersonMapping User {self.user_id} -> Person {self.person_object_id}>"
+
+class UserAlias(db.Model):
+    """
+    Store alternative names/aliases for users to dynamically link person objects.
+    This allows flexible identity linking without hard database constraints.
+    """
+    __tablename__ = 'user_aliases'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    alias_name = db.Column(db.String(255), nullable=False, index=True)
+    alias_type = db.Column(db.String(50), default='name')  # 'name', 'nickname', 'maiden_name', etc.
+    confidence = db.Column(db.Float, default=1.0)  # Confidence level for matching (0.0-1.0)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref='aliases')
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'alias_name'),)
+    
+    def __repr__(self):
+        return f"<UserAlias {self.alias_name} -> User {self.user_id}>"
+    
+    @classmethod
+    def find_matching_users(cls, person_name, confidence_threshold=0.7):
+        """
+        Find users that have aliases matching the given person name.
+        Uses fuzzy matching for flexible name matching.
+        """
+        # Exact matches first
+        exact_matches = cls.query.filter(
+            cls.alias_name.ilike(person_name),
+            cls.is_active == True,
+            cls.confidence >= confidence_threshold
+        ).all()
+        
+        if exact_matches:
+            return [(alias.user, 1.0) for alias in exact_matches]
+        
+        # Fuzzy matching for similar names
+        import difflib
+        all_aliases = cls.query.filter(cls.is_active == True).all()
+        matches = []
+        
+        for alias in all_aliases:
+            similarity = difflib.SequenceMatcher(None, 
+                                               person_name.lower().strip(), 
+                                               alias.alias_name.lower().strip()).ratio()
+            
+            if similarity >= confidence_threshold:
+                combined_confidence = similarity * alias.confidence
+                matches.append((alias.user, combined_confidence))
+        
+        # Sort by confidence and return
+        return sorted(matches, key=lambda x: x[1], reverse=True)
 
 class Note(db.Model):
     """
@@ -1245,7 +1403,7 @@ class Collection(db.Model):
                               lazy='dynamic', backref=db.backref('collections', lazy='dynamic'))
     
     def __repr__(self):
-        return f"<Collection {self.name}>"
+        return f"<Collection '{self.name}' ({self.collection_type})>"
     
     def add_object(self, obj):
         """Add an object to this collection"""
@@ -1258,7 +1416,149 @@ class Collection(db.Model):
             self.objects.remove(obj)
     
     def has_object(self, obj):
-        """Check if object is in this collection"""
-        return self.objects.filter(collection_objects.c.object_id == obj.id).count() > 0
+        """Check if collection contains this object"""
+        return obj in self.objects
+
+class ReceiptCreationTracking(db.Model):
+    """
+    Tracks what objects, people, events, and other entities have been created from receipts.
+    This prevents duplicate creation and allows granular control at the line item level.
+    """
+    __tablename__ = 'receipt_creation_tracking'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
+    line_item_index = db.Column(db.Integer, nullable=True)  # Index of line item (null for receipt-level items)
+    creation_type = db.Column(db.String(50), nullable=False, index=True)  # 'object', 'invoice', 'organization', 'calendar_event'
+    creation_id = db.Column(db.Integer, nullable=False)  # ID of the created record (objects.id, invoices.id, etc.)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_task_id = db.Column(db.Integer, db.ForeignKey('task_queue.id'), nullable=True)
+    creation_metadata = db.Column(JSONB, default=lambda: {})  # Additional creation metadata
+    
+    # Relationships
+    invoice = db.relationship('Invoice', backref='creation_tracking')
+    task = db.relationship('TaskQueue', backref='creation_tracking')
+    
+    # Unique constraint to prevent duplicate tracking entries
+    __table_args__ = (
+        db.UniqueConstraint('invoice_id', 'line_item_index', 'creation_type', 'creation_id', 
+                           name='unique_receipt_creation'),
+    )
+    
+    def __repr__(self):
+        line_info = f" line {self.line_item_index}" if self.line_item_index is not None else ""
+        return f"<ReceiptCreation invoice {self.invoice_id}{line_info}: {self.creation_type} {self.creation_id}>"
+    
+    @classmethod
+    def track_creation(cls, invoice_id, creation_type, creation_id, 
+                       line_item_index=None, task_id=None, metadata=None):
+        """
+        Track that something was created from a receipt.
+        
+        Args:
+            invoice_id: ID of the invoice/receipt
+            creation_type: Type of creation ('object', 'invoice', 'organization', 'calendar_event')
+            creation_id: ID of the created record (objects.id, invoices.id, etc.)
+            line_item_index: Index of line item (None for receipt-level)
+            task_id: ID of the task that created this (optional)
+            metadata: Additional metadata (optional)
+        
+        Returns:
+            ReceiptCreationTracking: The created tracking record
+        """
+        tracking = cls(
+            invoice_id=invoice_id,
+            line_item_index=line_item_index,
+            creation_type=creation_type,
+            creation_id=creation_id,
+            created_by_task_id=task_id,
+            creation_metadata=metadata or {}
+        )
+        db.session.add(tracking)
+        return tracking
+    
+    @classmethod
+    def get_created_entities(cls, invoice_id, line_item_index=None, creation_type=None):
+        """
+        Get all entities created from a specific receipt or line item.
+        
+        Args:
+            invoice_id: ID of the invoice/receipt
+            line_item_index: Specific line item index (None for all)
+            creation_type: Filter by creation type (None for all)
+        
+        Returns:
+            list: List of tracking records
+        """
+        query = cls.query.filter_by(invoice_id=invoice_id)
+        
+        if line_item_index is not None:
+            query = query.filter_by(line_item_index=line_item_index)
+        
+        if creation_type:
+            query = query.filter_by(creation_type=creation_type)
+        
+        return query.all()
+    
+    @classmethod
+    def is_created(cls, invoice_id, creation_type, line_item_index=None):
+        """
+        Check if an entity type has already been created from a receipt/line item.
+        
+        Args:
+            invoice_id: ID of the invoice/receipt
+            creation_type: Type of creation to check for
+            line_item_index: Specific line item index (None for receipt-level)
+        
+        Returns:
+            bool: True if entity has been created
+        """
+        query = cls.query.filter_by(
+            invoice_id=invoice_id,
+            creation_type=creation_type,
+            line_item_index=line_item_index
+        )
+        return query.first() is not None
+    
+    @classmethod
+    def get_creation_summary(cls, invoice_id):
+        """
+        Get a summary of all creations for a receipt.
+        
+        Args:
+            invoice_id: ID of the invoice/receipt
+        
+        Returns:
+            dict: Summary of creations by type and line item
+        """
+        trackings = cls.query.filter_by(invoice_id=invoice_id).all()
+        
+        summary = {
+            'receipt_level': {},
+            'line_items': {},
+            'totals': {}
+        }
+        
+        for tracking in trackings:
+            if tracking.line_item_index is None:
+                # Receipt-level creation
+                if tracking.creation_type not in summary['receipt_level']:
+                    summary['receipt_level'][tracking.creation_type] = []
+                summary['receipt_level'][tracking.creation_type].append(tracking)
+            else:
+                # Line item creation
+                line_idx = tracking.line_item_index
+                if line_idx not in summary['line_items']:
+                    summary['line_items'][line_idx] = {}
+                if tracking.creation_type not in summary['line_items'][line_idx]:
+                    summary['line_items'][line_idx][tracking.creation_type] = []
+                summary['line_items'][line_idx][tracking.creation_type].append(tracking)
+        
+        # Calculate totals
+        for creation_type in ['object', 'person', 'event', 'organization']:
+            count = len([t for t in trackings if t.creation_type == creation_type])
+            summary['totals'][creation_type] = count
+        
+        return summary
 
 

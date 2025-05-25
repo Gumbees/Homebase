@@ -7,7 +7,7 @@ This guide covers the development setup, architecture, and contribution guidelin
 ### Technology Stack
 - **Backend**: Flask 3.1+ with Python 3.11+
 - **Database**: PostgreSQL 15+ with SQLAlchemy ORM and JSONB for flexible data storage
-- **AI Integration**: OpenAI GPT-4, Anthropic Claude, Local LLM Studio via MCP Server
+- **AI Integration**: OpenAI GPT-4o exclusively for superior image processing and QR/UPC code cropping
 - **MCP Server**: FastAPI-based Model Context Protocol server for AI abstraction
 - **Frontend**: HTML templates with Bootstrap/CSS and JavaScript
 - **Deployment**: Docker & Docker Compose
@@ -24,11 +24,11 @@ homebase/
 ├── mcp_client.py                   # MCP server client integration
 ├── 
 ├── AI Services/
-│   ├── ai_service.py              # Main AI service coordinator (legacy)
-│   ├── claude_utils.py            # Anthropic Claude integration (legacy)
-│   ├── openai_utils.py            # OpenAI GPT integration (legacy)
-│   ├── llm_studio_utils.py        # Local LLM Studio integration (legacy)
-│   └── ocr_utils.py               # OCR and image processing
+│   ├── openai_utils.py            # OpenAI GPT-4o integration (active)
+│   ├── ocr_utils.py               # OCR and image processing (OpenAI-powered)
+
+│   ├── claude_utils.py            # Anthropic Claude integration (removed)
+│   └── llm_studio_utils.py        # Local LLM Studio integration (removed)
 │
 ├── MCP Server/
 │   ├── mcp-server/
@@ -101,10 +101,8 @@ DATABASE_URL=postgresql://homebase:homebase@localhost:5432/homebase
 # MCP Server Configuration
 MCP_SERVER_URL=http://mcp-server:8080
 
-# AI Service API Keys (optional)
+# AI Service API Keys (required)
 OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-LLM_STUDIO_ENDPOINT=http://localhost:1234
 
 # Security
 SESSION_SECRET=your_secure_random_secret_key_here
@@ -159,6 +157,157 @@ python update_db_ai_queue.py
 ```
 
 ## 🏛️ Database Architecture
+
+### 📋 Data Model Concepts
+
+#### Entities vs Objects
+
+Homebase uses two different approaches for data storage to balance structure with flexibility:
+
+**🏢 Entities** - Structured Database Tables
+- **Purpose**: Governance, relationships, and structured data
+- **Examples**: `invoices`, `organizations`, `calendar_events`, `users`, `vendors`
+- **Characteristics**: 
+  - Fixed schema with defined columns
+  - Enforced relationships via foreign keys
+  - Optimized for queries and reporting
+  - Used for core business logic and integrations
+
+**🧱 Objects** - Flexible JSON-Based Records  
+- **Purpose**: Dynamic, evolving data with varied schemas
+- **Storage**: Single `objects` table with JSONB `data` column
+- **Examples**: Assets, consumables, people, pets, components
+- **Characteristics**:
+  - Flexible schema stored as JSON
+  - Can evolve without database migrations  
+  - AI-processed with confidence scoring
+  - Categorized and tagged dynamically
+
+**Receipt Creation Tracking**
+The `receipt_creation_tracking` table bridges both concepts:
+- `creation_type`: What type was created ('object', 'invoice', 'organization', 'calendar_event')
+- `creation_id`: The primary key of the created record (regardless of table)
+- `line_item_index`: Which receipt line item created it (null for receipt-level items)
+
+### 🎛️ AI Queue Checkbox System
+
+The AI Queue uses a sophisticated checkbox-based creation system that allows users to selectively create related items from receipts:
+
+#### User Interface Flow
+1. **Receipt Analysis**: AI processes receipt and identifies potential creations
+2. **Checkbox Selection**: User sees checkboxes for:
+   - 📄 Invoice (always checked by default)
+   - 🏢 Organization (if vendor detected)
+   - 📅 Calendar Event (if event detected)
+   - 📦 Objects (per line item, if items detected)
+   - 👤 People (if people detected)
+
+3. **Selective Creation**: Only checked items get created
+4. **Automatic Relationships**: Created items are automatically linked to each other
+
+#### Implementation Details
+
+**Route**: `/approve-receipt-with-selections/<int:task_id>`
+- Handles `POST` requests with checkbox selections
+- Calls `process_receipt_task_enhanced()` with selections
+- Tracks all creations in `receipt_creation_tracking`
+
+**Creation Logic**:
+```python
+# Line item objects (granular tracking)
+for line_idx in create_objects:
+    if not ReceiptCreationTracking.is_created(invoice.id, 'object', line_idx):
+        obj = create_object_from_line_item(item, invoice, line_idx)
+        ReceiptCreationTracking.track_creation(
+            invoice_id=invoice.id,
+            line_item_index=line_idx,  # Specific line item
+            creation_type='object',
+            creation_id=obj.id
+        )
+
+# Receipt-level entities (receipt tracking)
+if create_organization:
+    if not ReceiptCreationTracking.is_created(invoice.id, 'organization', None):
+        org = Organization.get_or_create(vendor_name)
+        ReceiptCreationTracking.track_creation(
+            invoice_id=invoice.id,
+            line_item_index=None,  # Receipt level
+            creation_type='organization',
+            creation_id=org.id
+        )
+```
+
+#### Smart UI Prevention
+
+Once items are created, the UI adapts:
+
+**AI Queue**: Shows what was already created, disables duplicate creation
+**Receipts Page**: Hides creation buttons for items that already exist
+
+### Enhanced QR Code & UPC Code Processing
+
+The system now automatically detects, crops, and saves QR codes and UPC/barcode images from receipts:
+
+#### Attachment Types
+- **`qr_code`**: Text data extracted from QR codes
+- **`qr_code_image`**: Cropped image of the QR code itself (base64 stored as JPEG)
+- **`upc_code`**: Text data extracted from UPC/barcodes  
+- **`upc_code_image`**: Cropped image of the UPC/barcode (base64 stored as JPEG)
+- **`confirmation_code`**: Text confirmation codes for events/tickets
+
+#### Implementation
+```python
+# Enhanced object creation with QR/UPC processing
+def create_object_from_line_item(item, invoice, line_idx):
+    # ... object creation logic ...
+    
+    # Process digital assets
+    digital_assets = extracted_metadata.get('digital_assets', {})
+    
+    # Create QR code attachments - both text and image
+    qr_code_data = digital_assets.get('qr_code')
+    qr_code_image = digital_assets.get('qr_code_image')  # base64 image
+    
+    if qr_code_image:
+        # Save cropped QR code image
+        qr_image_data = base64.b64decode(qr_code_image)
+        qr_image_attachment = ObjectAttachment(
+            object_id=obj.id,
+            filename=f"qr_code_{obj.id}.jpg",
+            file_data=qr_image_data,
+            file_type='image/jpeg',
+            attachment_type='qr_code_image',
+            description='AI-cropped QR code from receipt'
+        )
+```
+
+#### UI Enhancements
+- **Visual Indicators**: Special badges for AI-cropped images
+- **View Links**: Direct viewing of cropped QR codes and UPC codes
+- **Type Differentiation**: Clear distinction between text data and cropped images
+
+**Example Logic**:
+```python
+# Check if line item object already created
+line_item_created = ReceiptCreationTracking.is_created(
+    invoice_id=receipt.id,
+    creation_type='object',
+    line_item_index=0  # First line item
+)
+
+# Check if calendar event already created  
+event_created = ReceiptCreationTracking.is_created(
+    invoice_id=receipt.id,
+    creation_type='calendar_event',
+    line_item_index=None  # Receipt level
+)
+```
+
+#### Benefits
+- **No Duplicates**: Impossible to create the same thing twice
+- **User Control**: Full control over what gets created
+- **Performance**: Efficient tracking without complex queries
+- **Clarity**: Clear indication of what was created when
 
 ### Core Models
 
@@ -233,18 +382,18 @@ The MCP server is a **FastAPI-based microservice** that centralizes all AI opera
 
 ### AI Service Abstraction Layer
 
-#### Legacy Integration (Phase-out)
-The existing `claude_utils.py`, `openai_utils.py`, and `llm_studio_utils.py` modules are being phased out in favor of the MCP server.
+#### Simplified Integration (OpenAI Exclusive)
+The system now uses OpenAI GPT-4o exclusively. Legacy `claude_utils.py` and `llm_studio_utils.py` modules have been removed.
 
-#### New MCP Integration
+#### Current Integration
 ```python
-# New approach via MCP client
+# OpenAI-exclusive approach via MCP client
 from mcp_client import analyze_receipt_sync
 
 result = analyze_receipt_sync(
     image_data=receipt_bytes,
     filename="receipt.jpg", 
-    provider="claude"
+    provider="openai"  # Only provider supported
 )
 ```
 
@@ -276,22 +425,22 @@ version: "1.0"
 - **Reusability**: Shared prompts across different contexts
 - **Validation**: Automatic syntax and schema checking
 
-### Provider-Specific Implementations
+### AI Provider Implementation
 
-#### Claude Integration
-- **Model**: Claude-3.5 Sonnet for vision and text analysis
-- **Strengths**: Superior reasoning, longer context windows
-- **Cost**: ~$3-15 per 1K tokens depending on input/output
+#### OpenAI GPT-4o Integration (Exclusive)
+- **Model**: GPT-4o for all vision and text analysis operations
+- **Key Features**:
+  - **QR Code Cropping**: Automatically detects and crops QR codes from receipts
+  - **UPC/Barcode Extraction**: Identifies and extracts barcode images with high accuracy
+  - **No Image Size Limits**: Processes high-resolution images without compression
+  - **Enhanced Metadata Extraction**: Superior detection of serial numbers, model numbers, and product details
+- **Strengths**: Advanced vision capabilities, consistent results, image cropping, fast processing
+- **Cost**: ~$2.50-15 per 1K tokens depending on input/output (vision vs text)
 
-#### OpenAI Integration  
-- **Models**: GPT-4 Vision for image analysis, GPT-4 for text
-- **Strengths**: Fast processing, reliable OCR
-- **Cost**: ~$5-60 per 1K tokens depending on model
-
-#### LLM Studio Integration
-- **Models**: Local models (Llama, Mistral, etc.)
-- **Benefits**: Privacy, no API costs, offline operation
-- **Trade-offs**: Requires local GPU resources, potentially lower accuracy
+#### Legacy Provider Support (Removed)
+- **Claude (Anthropic)**: Removed in favor of OpenAI's superior image processing
+- **LLM Studio**: Removed to simplify architecture and ensure consistent results
+- **Benefits of Single Provider**: Consistent API behavior, simplified maintenance, predictable costs
 
 ### MCP API Endpoints
 
@@ -333,9 +482,10 @@ MCP server uses structured logging with JSON output for better observability.
 
 ### Error Handling
 - Database transactions with proper rollback
-- AI service failover between providers via MCP server
-- Graceful degradation when MCP server unavailable
+- Graceful degradation when MCP server or OpenAI API unavailable
+- Automatic fallback to basic receipt processing when AI fails
 - User-friendly error messages with confidence indicators
+- Enhanced attachment handling for QR code and UPC code images
 
 ### Testing Strategy
 - Unit tests for core business logic
@@ -397,10 +547,10 @@ python -m pytest tests/test_models.py
 # Validate prompt templates
 curl http://localhost:8080/prompts/templates/receipt_analysis
 
-# Test prompt rendering
+# Test prompt rendering (OpenAI only)
 curl -X POST http://localhost:8080/ai/process \
   -H "Content-Type: application/json" \
-  -d '{"prompt_type": "receipt_analysis", "provider": "claude", "context": {}}'
+  -d '{"prompt_type": "receipt_analysis", "provider": "openai", "context": {}}'
 ```
 
 ## 🚀 Deployment
@@ -412,12 +562,8 @@ DATABASE_URL=postgresql://user:password@host:port/database
 SESSION_SECRET=your_production_secret_key
 MCP_SERVER_URL=http://mcp-server:8080
 
-# AI Services (at least one recommended)  
+# AI Services (required)
 OPENAI_API_KEY=your_production_openai_key
-ANTHROPIC_API_KEY=your_production_anthropic_key
-
-# Optional
-LLM_STUDIO_ENDPOINT=http://your-llm-studio:1234
 ```
 
 ### Docker Production Deployment
@@ -432,9 +578,10 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ### Performance Considerations
 - **Database Indexing**: Ensure GIN indexes on frequently queried JSONB fields
 - **MCP Server Scaling**: Can be horizontally scaled with load balancer
-- **AI Rate Limiting**: Configure appropriate daily limits per provider
-- **File Storage**: Consider external storage for large attachment volumes
+- **AI Rate Limiting**: Configure appropriate daily limits for OpenAI API
+- **File Storage**: Consider external storage for large attachment volumes and cropped images
 - **Caching**: Implement Redis caching for frequently accessed data
+- **Image Processing**: No size limits means larger storage requirements for high-resolution images
 
 ## 🤝 Contributing
 
@@ -455,10 +602,11 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ### Feature Development Guidelines
 1. **Database Changes**: Always include migration scripts
-2. **AI Integration**: Use MCP server, not legacy AI utils
+2. **AI Integration**: Use OpenAI GPT-4o exclusively via MCP server
 3. **Prompt Changes**: Update templates via MCP server API
 4. **UI Changes**: Ensure responsive design and accessibility
 5. **API Changes**: Maintain backward compatibility when possible
+6. **Image Processing**: Leverage OpenAI's image cropping capabilities for QR/UPC codes
 
 ## 🐛 Debugging
 
@@ -478,8 +626,8 @@ python -c "from app import db; from models import Object; print(Object.query.fil
 # Test MCP server health
 curl http://localhost:8080/health
 
-# Test AI provider connectivity  
-curl -X POST http://localhost:8080/providers/claude/test
+# Test OpenAI connectivity
+curl -X POST http://localhost:8080/providers/openai/test
 ```
 
 #### AI Processing Issues

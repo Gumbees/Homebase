@@ -80,3 +80,9 @@ with app.app_context():
 
 # Import routes after app is initialized
 from routes import *  # noqa: F401,E402
+
+# Add utility functions to Jinja environment
+@app.context_processor
+def utility_processor():
+    from routes import determine_object_type_smart
+    return dict(determine_object_type_smart=determine_object_type_smart)

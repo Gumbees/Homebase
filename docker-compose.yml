@@ -8,7 +8,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - GUNICORN_TIMEOUT=300
-      - MCP_SERVER_URL=http://mcp-server:8080
     depends_on:
       db:
         condition: service_healthy

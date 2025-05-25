@@ -105,9 +105,7 @@
                                     <button type="button" id="analyzeImageOpenAIBtn" class="btn btn-info flex-grow-1">
                                         <i class="fas fa-camera me-1"></i> Analyze with OpenAI
                                     </button>
-                                    <button type="button" id="analyzeImageClaudeBtn" class="btn btn-primary flex-grow-1">
-                                        <i class="fas fa-camera me-1"></i> Analyze with Claude
-                                    </button>
+                                    <!-- Claude button removed - OpenAI GPT-4o is now the exclusive AI provider -->
                                 </div>
                             </div>
                         {% endif %}
@@ -139,11 +137,8 @@
                             <div class="form-group">
                                 <label class="form-label">Auto-Fill Using UPC/Model</label>
                                 <div class="d-flex gap-2 mb-3">
-                                    <button type="button" id="lookupAssetOpenAIBtn" class="btn btn-info flex-grow-1">
-                                        <i class="fas fa-magic me-1"></i> Lookup with OpenAI
-                                    </button>
-                                    <button type="button" id="lookupAssetClaudeBtn" class="btn btn-primary flex-grow-1">
-                                        <i class="fas fa-magic me-1"></i> Lookup with Claude
+                                    <button type="button" id="lookupAssetOpenAIBtn" class="btn btn-info w-100">
+                                        <i class="fas fa-magic me-1"></i> Lookup with OpenAI GPT-4o
                                     </button>
                                 </div>
                                 <div id="lookupResult" class="alert d-none mt-2"></div>
@@ -467,12 +462,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Asset Image Analysis Functionality
     const analyzeImageOpenAIBtn = document.getElementById('analyzeImageOpenAIBtn');
-    const analyzeImageClaudeBtn = document.getElementById('analyzeImageClaudeBtn');
     const objectImageInput = document.getElementById('objectImage');
     const lookupResult = document.getElementById('lookupResult');
     
-    // Function to handle image analysis with either API
-    function analyzeImage(useClaudeAPI) {
+    // Function to handle image analysis with OpenAI
+    function analyzeImage() {
         // Check if an image was uploaded
         if (!objectImageInput.files || !objectImageInput.files[0]) {
             lookupResult.classList.remove('d-none', 'alert-success');
@@ -483,34 +477,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Show loading state
-        const activeButton = useClaudeAPI ? analyzeImageClaudeBtn : analyzeImageOpenAIBtn;
-        const inactiveButton = useClaudeAPI ? analyzeImageOpenAIBtn : analyzeImageClaudeBtn;
-        
-        activeButton.disabled = true;
-        inactiveButton.disabled = true;
-        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
+        analyzeImageOpenAIBtn.disabled = true;
+        analyzeImageOpenAIBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
         lookupResult.classList.add('d-none');
         
         // Create FormData and append the image
         const formData = new FormData();
         formData.append('image', objectImageInput.files[0]);
         
-        // Determine the API endpoint
-        const apiEndpoint = useClaudeAPI ? '/api/analyze-asset-image-claude' : '/api/analyze-asset-image';
-        
-        // Call the API
-        fetch(apiEndpoint, {
+        // Call the OpenAI API
+        fetch('/api/analyze-asset-image', {
             method: 'POST',
             body: formData
         })
         .then(response => response.json())
         .then(data => {
-            // Reset buttons
-            activeButton.disabled = false;
-            inactiveButton.disabled = false;
-            activeButton.innerHTML = useClaudeAPI ? 
-                '<i class="fas fa-camera me-1"></i> Analyze with Claude' : 
-                '<i class="fas fa-camera me-1"></i> Analyze with OpenAI';
+            // Reset button
+            analyzeImageOpenAIBtn.disabled = false;
+            analyzeImageOpenAIBtn.innerHTML = '<i class="fas fa-camera me-1"></i> Analyze with OpenAI GPT-4o';
             
             if (data.success) {
                 // Fill form with the extracted data
@@ -592,10 +576,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Asset Lookup Functionality
     const lookupAssetOpenAIBtn = document.getElementById('lookupAssetOpenAIBtn');
-    const lookupAssetClaudeBtn = document.getElementById('lookupAssetClaudeBtn');
     
-    // Function to handle asset lookup with either API
-    function lookupAsset(useClaudeAPI) {
+    // Function to handle asset lookup with OpenAI
+    function lookupAsset() {
         // Get relevant fields
         const upc = document.getElementById('upc').value.trim();
         const manufacturer = document.getElementById('manufacturer').value.trim();
@@ -611,12 +594,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Show loading state
-        const activeButton = useClaudeAPI ? lookupAssetClaudeBtn : lookupAssetOpenAIBtn;
-        const inactiveButton = useClaudeAPI ? lookupAssetOpenAIBtn : lookupAssetClaudeBtn;
-        
-        activeButton.disabled = true;
-        inactiveButton.disabled = true;
-        activeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Looking up...';
+        lookupAssetOpenAIBtn.disabled = true;
+        lookupAssetOpenAIBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Looking up...';
         lookupResult.classList.add('d-none');
         
         // Prepare query parameters
@@ -625,19 +604,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (manufacturer) params.append('oem', manufacturer);
         if (model) params.append('model', model);
         
-        // Determine the API endpoint
-        const apiEndpoint = useClaudeAPI ? '/api/lookup-asset-claude' : '/api/lookup-asset';
-        
-        // Call the API
-        fetch(`${apiEndpoint}?${params.toString()}`)
+        // Call the OpenAI API
+        fetch(`/api/lookup-asset?${params.toString()}`)
         .then(response => response.json())
         .then(data => {
-            // Reset buttons
-            activeButton.disabled = false;
-            inactiveButton.disabled = false;
-            activeButton.innerHTML = useClaudeAPI ? 
-                '<i class="fas fa-magic me-1"></i> Lookup with Claude' : 
-                '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+            // Reset button
+            lookupAssetOpenAIBtn.disabled = false;
+            lookupAssetOpenAIBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with OpenAI GPT-4o';
             
             if (data.success) {
                 // Fill form with the extracted data
@@ -703,12 +676,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error:', error);
             
-            // Reset buttons
-            activeButton.disabled = false;
-            inactiveButton.disabled = false;
-            activeButton.innerHTML = useClaudeAPI ? 
-                '<i class="fas fa-magic me-1"></i> Lookup with Claude' : 
-                '<i class="fas fa-magic me-1"></i> Lookup with OpenAI';
+            // Reset button
+            lookupAssetOpenAIBtn.disabled = false;
+            lookupAssetOpenAIBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Lookup with OpenAI GPT-4o';
                 
             // Show error message
             lookupResult.classList.remove('d-none', 'alert-success');
@@ -725,21 +695,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    if (analyzeImageClaudeBtn) {
-        analyzeImageClaudeBtn.addEventListener('click', function() {
-            analyzeImage(true);
-        });
-    }
-    
     if (lookupAssetOpenAIBtn) {
         lookupAssetOpenAIBtn.addEventListener('click', function() {
-            lookupAsset(false);
-        });
-    }
-    
-    if (lookupAssetClaudeBtn) {
-        lookupAssetClaudeBtn.addEventListener('click', function() {
-            lookupAsset(true);
+            lookupAsset();
         });
     }
     {% endif %}
