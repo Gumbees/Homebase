@@ -288,6 +288,124 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Calendar**: Use the AI Queue and Receipts pages for event management until calendar functionality is restored. Events can still be created through receipt processing but cannot be viewed in calendar format.
 - **Modal Backdrop**: If the screen becomes unclickable after closing a modal, refresh the page (F5) to restore functionality. Alternatively, press the ESC key multiple times to force-close any lingering modal states.
 
+## ⚠️ Critical Scalability Issues
+
+### 🎯 Object Uniqueness and Linking System
+**Status**: Critical Architecture Issue | **Priority**: High | **Impact**: Database Growth & Data Quality
+
+#### 🚨 The Problem
+The current object creation system has significant scalability issues that will cause database bloat and poor data quality at scale:
+
+1. **Duplicate Object Creation**: Each receipt scan creates new objects even when similar ones already exist
+2. **Service Object Proliferation**: Recurring services (subscriptions, utilities, maintenance) create separate objects for each occurrence instead of consolidating into single objects with multiple line items
+3. **Person Duplication**: Multiple person objects created for the same individual across different receipts
+4. **Asset Fragmentation**: Similar assets (same model laptops, identical furniture) created as separate objects
+
+#### 📊 Scale Impact
+- **100 receipts/month** → 1,200+ duplicate objects annually
+- **Recurring services** → 12+ objects per service per year instead of 1 consolidated object
+- **Family of 4** → 20+ person objects instead of 4 linked entities
+- **Database growth** → Exponential, unmanageable data expansion
+
+#### 🔧 Required Solution: Smart Object Linking System
+
+##### **Object Type-Specific Uniqueness Logic**
+
+**High-Uniqueness Types** *(should suggest links to existing objects)*:
+- **Persons**: Name, contact info, relationships
+- **Assets**: Model, serial number, manufacturer  
+- **Pets**: Name, breed, identifying characteristics
+- **Services**: Service provider, service type, account number
+
+**Low-Uniqueness Types** *(create new objects each time)*:
+- **Consumables**: Every instance is consumed and replaced
+- **Components**: Even identical parts are separate physical items
+
+##### **Service Object Consolidation**
+```
+❌ Current: Multiple Objects
+Service Object #1: Netflix (Jan 2024) - $15.99
+Service Object #2: Netflix (Feb 2024) - $15.99  
+Service Object #3: Netflix (Mar 2024) - $15.99
+
+✅ Proposed: Single Consolidated Object
+Service Object: Netflix Subscription
+├── Line Item 1: Jan 2024 - $15.99 (Invoice #123)
+├── Line Item 2: Feb 2024 - $15.99 (Invoice #456)
+└── Line Item 3: Mar 2024 - $15.99 (Invoice #789)
+```
+
+##### **Object Type-Specific Required Fields**
+
+**Beyond JSON Metadata - Database Schema Changes Needed:**
+
+**Persons:**
+- `first_name`, `last_name`, `email`, `phone` (for matching)
+- `date_of_birth`, `address` (for verification)
+
+**Assets:**
+- `manufacturer`, `model_number`, `serial_number` (for identification)
+- `purchase_date`, `warranty_expiration` (for lifecycle tracking)
+
+**Services:**
+- `provider_name`, `service_type`, `account_number` (for consolidation)
+- `billing_cycle`, `next_billing_date` (for automation)
+
+**Consumables:**
+- `expiry_date`, `lot_number`, `quantity_remaining` (for lifecycle)
+- `reorder_threshold`, `auto_archive_expired` (for automation)
+
+**Components:**
+- `compatible_with`, `part_number`, `installation_date` (for tracking)
+- `warranty_period`, `replacement_schedule` (for maintenance)
+
+**Pets:**
+- `species`, `breed`, `microchip_id`, `registration_number` (for identification)
+- `birth_date`, `vaccination_records`, `vet_contact` (for care tracking)
+
+#### 🎯 Required Implementation: Human-in-the-Loop Linking
+
+**During Receipt/Object Creation:**
+1. **AI Analysis**: Scan for potential matches using object-specific fields
+2. **Confidence Scoring**: Rate likelihood of matches (high/medium/low)
+3. **User Interface**: Present suggested links with confidence indicators
+4. **Decision Points**: User can confirm link, reject, or create new object
+5. **Learning System**: Track user decisions to improve future suggestions
+
+**Example UI Flow:**
+```
+🤖 AI Detection: "Potential match found!"
+
+Found similar object: "John Smith (Person)"
+Confidence: 92% High
+Matching fields: Name, phone number
+Differing fields: Address (updated?)
+
+Actions:
+[ Link to existing ] [ Create new ] [ Maybe later ]
+
+For Services:
+🔄 "Netflix subscription already exists"
+Add this $15.99 charge to existing Netflix object? 
+[ Yes, add line item ] [ No, create separate ] 
+```
+
+#### 🎯 Impact of Solution
+- **Database Efficiency**: 80% reduction in object count for recurring items
+- **Data Quality**: Single source of truth for persons, assets, services
+- **User Experience**: Cleaner inventory views, better search results
+- **Analytics**: Accurate spending patterns, real usage tracking
+- **Automation**: Proper expiry tracking, maintenance scheduling
+
+#### 🚨 Immediate Action Required
+This issue becomes exponentially worse with scale. A system processing 100+ receipts monthly will become unusable within 6 months due to data fragmentation. **Architecture changes needed before production deployment.**
+
+**Priority Implementation Order:**
+1. **Service Consolidation** (highest ROI) - Recurring billing impact
+2. **Person Linking** (user experience) - Family/household management  
+3. **Asset Uniqueness** (inventory accuracy) - Serial number tracking
+4. **Type-Specific Fields** (data quality) - Proper object lifecycle management
+
 ## 🚀 Planned Enhancements
 
 ### 📧 Correspondence Management System
