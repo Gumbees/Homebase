@@ -288,6 +288,59 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Calendar**: Use the AI Queue and Receipts pages for event management until calendar functionality is restored. Events can still be created through receipt processing but cannot be viewed in calendar format.
 - **Modal Backdrop**: If the screen becomes unclickable after closing a modal, refresh the page (F5) to restore functionality. Alternatively, press the ESC key multiple times to force-close any lingering modal states.
 
+## 🚀 Planned Enhancements
+
+### 📧 Correspondence Management System
+**Status**: Under Discussion | **Priority**: High | **Target**: Next Major Release
+
+A comprehensive correspondence management system to automate the processing of communication channels and extract actionable information.
+
+#### 🎯 Core Concept
+- **New Object Type**: `correspondence` for emails, texts, Teams messages, and other communications
+- **AI-Powered Triage**: Automatically identify important correspondence vs. noise
+- **Smart Extraction**: Convert correspondence into relevant objects and entities
+- **Multi-Channel Integration**: Support for email, SMS, Microsoft Teams, Slack, and other platforms
+
+#### 🔧 Planned Features
+- **📥 Inbox Automation**: Connect to email accounts, messaging platforms, and communication tools
+- **🤖 AI Classification**: Use OpenAI GPT-4o to categorize correspondence by importance and type
+- **🎯 Smart Filtering**: Automatically identify receipts, agreements, invoices, and important notifications
+- **⚡ Auto-Creation**: Generate objects and entities directly from correspondence:
+  - Receipts emailed from vendors → Automatic invoice and object creation
+  - Contract updates → Document objects with calendar reminders
+  - Delivery notifications → Update existing orders and create tracking objects
+  - Service communications → Create maintenance tasks and calendar events
+
+#### 🏗️ Technical Architecture
+- **Object Type**: Add `correspondence` to existing object types alongside assets, consumables, etc.
+- **Data Model**: Store original message content, metadata, and extraction results
+- **Integration APIs**: Connect with email providers (Gmail, Outlook), messaging platforms
+- **Processing Pipeline**: Automated workflow for ingestion → analysis → extraction → object creation
+
+#### 💡 Use Cases
+- **📧 Email Receipts**: Automatically process emailed receipts into inventory objects
+- **📄 Important Documents**: Extract and store contracts, warranties, and agreements
+- **📅 Event Invitations**: Create calendar events from meeting invites and appointments
+- **🔔 Service Alerts**: Convert service notifications into maintenance tasks
+- **🛒 Order Updates**: Track deliveries and update inventory from shipping notifications
+- **💼 Business Communications**: Archive important business correspondence with smart tagging
+
+#### 🎯 Problem Solved
+Modern communication channels are overwhelming with information overload. This system would:
+- **Reduce Manual Sorting**: Eliminate hours spent sifting through communications
+- **Prevent Information Loss**: Ensure important items don't get buried in crowded inboxes
+- **Enable Automation**: Turn passive communication into actionable inventory and task management
+- **Improve Organization**: Create a unified system for managing both physical and digital assets
+
+#### 🔄 Integration Points
+- **Email Providers**: Gmail API, Microsoft Graph, IMAP/POP3
+- **Messaging Platforms**: Microsoft Teams, Slack, Discord webhooks
+- **SMS Services**: Twilio, carrier APIs for text message processing
+- **Document Processing**: Enhanced AI analysis for attachments and embedded content
+- **Existing Workflows**: Seamless integration with current receipt processing and object creation
+
+This enhancement would position Homebase as a comprehensive automation hub that bridges the gap between digital communications and physical asset management, making it truly indispensable for modern inventory and life management.
+
 ## 🆘 Support
 
 For support, please open an issue on GitHub or contact the development team.

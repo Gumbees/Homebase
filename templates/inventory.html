@@ -264,10 +264,14 @@
                                     </button>
                                     {% endif %}
                                     
-                                    {% if obj.object_type == 'person' %}
+                                    {% if obj.object_type == 'person' and not obj.user_mappings %}
                                     <a href="{{ url_for('promote_person_to_user', person_id=obj.id) }}" class="btn btn-sm btn-success" title="Promote to User">
                                         <i class="fas fa-user-plus"></i>
                                     </a>
+                                    {% elif obj.object_type == 'person' and obj.user_mappings %}
+                                    <span class="btn btn-sm btn-secondary disabled" title="Already linked to user">
+                                        <i class="fas fa-user-check"></i>
+                                    </span>
                                     {% endif %}
                                     
                                     {% if obj.data.needs_approval and obj.object_type == 'asset' %}
@@ -368,10 +372,14 @@
                                     </button>
                                     {% endif %}
                                     
-                                    {% if obj.object_type == 'person' %}
+                                    {% if obj.object_type == 'person' and not obj.user_mappings %}
                                     <a href="{{ url_for('promote_person_to_user', person_id=obj.id) }}" class="btn btn-sm btn-success" title="Promote to User">
                                         <i class="fas fa-user-plus"></i>
                                     </a>
+                                    {% elif obj.object_type == 'person' and obj.user_mappings %}
+                                    <span class="btn btn-sm btn-secondary disabled" title="Already linked to user">
+                                        <i class="fas fa-user-check"></i>
+                                    </span>
                                     {% endif %}
                                     
                                     <!-- TODO: Implement object attachments functionality
@@ -1083,13 +1091,26 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
         
-        html += `</table>
+        html += `</table>`;
+        
+        // Only show promote button if not already linked to a user
+        if (!data.user_mappings || data.user_mappings.length === 0) {
+            html += `
                  <div class="mt-3">
                      <a href="/promote-person-to-user/${objectId}" class="btn btn-success">
                          <i class="fas fa-user-plus me-1"></i>Promote to User
                      </a>
-                 </div>
-                 </div></div>`;
+                 </div>`;
+        } else {
+            html += `
+                 <div class="mt-3">
+                     <span class="btn btn-secondary disabled" title="Already linked to user">
+                         <i class="fas fa-user-check me-1"></i>Linked to User
+                     </span>
+                 </div>`;
+        }
+        
+        html += `</div></div>`;
         return html;
     }
     

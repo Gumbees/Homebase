@@ -5097,6 +5097,19 @@ def get_object_details(object_id):
             'invoice_id': obj.invoice_id
         }
         
+        # Add user mappings for person objects
+        if obj.object_type == 'person':
+            user_mappings = []
+            for mapping in obj.user_mappings:
+                user_mappings.append({
+                    'user_id': mapping.user_id,
+                    'username': mapping.user.username,
+                    'display_name': mapping.user.display_name,
+                    'is_primary': mapping.is_primary,
+                    'created_at': mapping.created_at.isoformat() if mapping.created_at else None
+                })
+            object_details['user_mappings'] = user_mappings
+        
         # Add invoice details if available
         if invoice:
             object_details['invoice'] = {

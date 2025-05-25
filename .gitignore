@@ -19,6 +19,7 @@ database.url
 
 # Logs
 logs/
+logs/*
 *.log
 log.txt
 homebase.log*
